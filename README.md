@@ -1,1 +1,1 @@
-# Virtuo - a habit tracker built using Golang and MongoDB
+# Virtuo - a CLI habit tracker built using Golang and MongoDB
