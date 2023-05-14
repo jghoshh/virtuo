@@ -33,8 +33,9 @@ func TestMain(m *testing.M) {
 	mongodbURI := os.Getenv("MONGODB_URI")
 	jwtSigningKey := os.Getenv("JWT_SIGNING_KEY")
 	authToken := os.Getenv("AUTH_TOKEN")
+	dbName := os.Getenv("TEST_DB_NAME")
 
-	InitAuth(mongodbURI, jwtSigningKey, authToken)
+	InitAuth(dbName, mongodbURI, jwtSigningKey, authToken)
 
 	code := m.Run()
 

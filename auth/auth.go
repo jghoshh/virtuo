@@ -24,11 +24,11 @@ const KeyringService = "Virtuo"
 // InitAuth initializes the global storage and jwtSigningKey variables.
 // It is required to be called before any other function in this package.
 // It takes a MongoDB URI, signing key, and auth token as input.
-func InitAuth(mongodbURI, signingKey, authToken string) {
+func InitAuth(dbName, mongodbURI, signingKey, authToken string) {
 	var err error
 	jwtSigningKey = signingKey
 	KeyringKey = authToken
-	store, err = storage.NewStorage(mongodbURI)
+	store, err = storage.NewStorage(dbName, mongodbURI)
 	if err != nil {
 		panic("Error initializing storage: " + err.Error())
 	}
@@ -52,45 +52,69 @@ func validatePassword(password string) bool {
 	return containsLetter && containsNumber
 }
 
-// getUserIDFromToken extracts the user ID from the JWT token stored in the keyring and returns it as a MongoDB ObjectID.
-// If the token is not found, invalid, or the user ID is invalid, it returns an error.
-func getUserIDFromToken() (primitive.ObjectID, error) {
-	token, err := keyring.Get(KeyringService, KeyringKey)
-	if err != nil {
-		return primitive.NilObjectID, errors.New("user not authenticated")
-	}
 
+// DecodeJWT decodes the provided JWT token and extracts the user ID.
+// It returns the user ID as a MongoDB ObjectID.
+// If the token is invalid, or the user ID is invalid, it returns an error.
+func DecodeJWT(token, jwtSigningKey string) (primitive.ObjectID, error) {
+	// Parse the token
 	parsedToken, err := jwt.Parse(token, func(token *jwt.Token) (interface{}, error) {
+		// Ensure the token uses the expected signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
+		// Return the signing key used to verify the token
 		return []byte(jwtSigningKey), nil
 	})
 
+	// Handle any error from parsing the token
 	if err != nil {
 		fmt.Println("Error parsing token:", err)
 		return primitive.NilObjectID, errors.New("invalid token")
 	}
 
+	// Cast the token claims to jwt.MapClaims
 	claims, ok := parsedToken.Claims.(jwt.MapClaims)
 	if !ok {
 		fmt.Println("Error casting token claims to jwt.MapClaims")
 		return primitive.NilObjectID, errors.New("invalid token claims")
 	}
 
+	// Extract the user ID from the claims
 	userIDStr, ok := claims["id"].(string)
-
 	if !ok {
 		fmt.Println("Error getting 'id' from token claims")
 		return primitive.NilObjectID, errors.New("invalid token claims")
 	}
 
+	// Convert the user ID from a string to a MongoDB ObjectID
 	userID, err := primitive.ObjectIDFromHex(userIDStr)
 	if err != nil {
 		fmt.Println("Error converting user ID string to ObjectID:", err)
 		return primitive.NilObjectID, errors.New("invalid user ID")
 	}
 
+	// Return the user ID
+	return userID, nil
+}
+
+// getUserIDFromToken extracts the user ID from the JWT token stored in the keyring and returns it as a MongoDB ObjectID.
+// If the token is not found, invalid, or the user ID is invalid, it returns an error.
+func getUserIDFromToken() (primitive.ObjectID, error) {
+	// Get the JWT token from the keyring
+	token, err := keyring.Get(KeyringService, KeyringKey)
+	if err != nil {
+		return primitive.NilObjectID, errors.New("user not authenticated")
+	}
+
+	// Use DecodeJWT to extract the user ID from the token
+	userID, err := DecodeJWT(token, jwtSigningKey)
+	if err != nil {
+		fmt.Println("Error decoding JWT:", err)
+		return primitive.NilObjectID, err
+	}
+
+	// Return the user ID
 	return userID, nil
 }
 
