@@ -3,3 +3,4 @@ realtime
 cmd
 analytics
 cache.go
+.DS_Store
