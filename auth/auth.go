@@ -1,14 +1,18 @@
 package auth
 
 import (
-	"github.com/jghoshh/virtuo/storage"
-	"go.mongodb.org/mongo-driver/bson/primitive"
-	"regexp"
-	"github.com/jghoshh/virtuo/graph/model"
 	"time"
 	"errors"
 	"fmt"
+	"context"
+	"golang.org/x/crypto/bcrypt"
 	"github.com/form3tech-oss/jwt-go"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/jghoshh/virtuo/storage"
+	"github.com/jghoshh/virtuo/models"
+	"github.com/jghoshh/virtuo/utils"
 )
 
 var store storage.StorageInterface
@@ -20,45 +24,37 @@ const KeyringService = "Virtuo"
 // It is required to be called before any other function in this package.
 // It takes a MongoDB URI, signing key, and auth token as input.
 func InitAuth(dbName, mongodbURI, signingKey string) {
+	var err error
 	jwtSigningKey = signingKey
-	/**
 	store, err = storage.NewStorage(dbName, mongodbURI)
 	if err != nil {
 		panic("Error initializing storage: " + err.Error())
 	}
-	**/
-}
-
-// validateEmail takes an email string as input and returns a boolean indicating whether the input is a valid email address.
-func validateEmail(email string) bool {
-	const emailPattern = `^(?i)[a-z0-9._%+\-]+@(?:[a-z0-9\-]+\.)+[a-z]{2,}$`
-	matched, err := regexp.MatchString(emailPattern, email)
-	return err == nil && matched
-}
-
-// validatePassword takes a password string as input and returns a boolean indicating whether the input is a valid password.
-// A valid password is at least 8 characters long and contains both numbers and letters.
-func validatePassword(password string) bool {
-	if len(password) < 8 {
-		return false
-	}
-	containsLetter, _ := regexp.MatchString(`[a-zA-Z]`, password)
-	containsNumber, _ := regexp.MatchString(`[0-9]`, password)
-	return containsLetter && containsNumber
 }
 
 // SignIn logs in a user with the username and password. Returns an error if the username or password is incorrect.
 func SignIn(username string, password string) (string, string, error) {
 
 	if len(username) < 2 {
-		return "", "", fmt.Errorf("username must be at least 2 characters")
+		return "", "", fmt.Errorf("invalid username")
 	}
 	
-	if !validatePassword(password) {
+	if !utils.ValidatePassword(password) {
 		return "", "", fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
 	}
 
-	token, refreshToken, err := CreateTokens(primitive.NewObjectID().Hex())
+	foundUser, err := store.FindUser(context.Background(), bson.M{"username": username})
+
+	if err != nil {
+		return "", "", errors.New("authentication failed")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(foundUser.PasswordHash), []byte(password))
+	if err != nil {
+		return "", "", errors.New("authentication failed")
+	}
+
+	token, refreshToken, err := CreateTokens(foundUser.ID.Hex())
 
 	if err != nil {
 		return "", "", err
@@ -74,29 +70,56 @@ func SignUp(username string, email string, password string) (string, string, err
 		return "", "", fmt.Errorf("username must be at least 2 characters")
 	}
 
-	if !validateEmail(email) {
+	if !utils.ValidateEmail(email) {
 		return "", "", fmt.Errorf("invalid email format")
 	}
 
-	if !validatePassword(password) {
+	if !utils.ValidatePassword(password) {
 		return "", "", fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
 	}
 
-	newUserID := primitive.NewObjectID().Hex()
-
-	newUser := model.User{
-		ID:       newUserID,
-		Username: username,
-		Email:    email,
-		Points:   0,
-		LevelID:  primitive.NilObjectID.Hex(),
-		GroupIDs: []string{},
-		Streak:   0,
+	foundUser, err := store.FindUser(context.Background(), bson.M{"email": email})
+	if err != nil && err != mongo.ErrNoDocuments {
+		return "", "", err
 	}
 
-	fmt.Println(newUser)
+	if foundUser != nil {
+		return "", "", errors.New("an account with this email already exists")
+	}
 
-	token, refreshToken, err := CreateTokens(newUserID) 
+	foundUser, err = store.FindUser(context.Background(), bson.M{"username": username})
+	if err != nil && err != mongo.ErrNoDocuments {
+		return "", "", err
+	}
+
+	if foundUser != nil {
+		return "", "", errors.New("username is taken")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", "", err
+	}
+
+	newUserID := primitive.NewObjectID()
+
+	user := &models.User{
+		ID: 		  newUserID,
+		Username:     username,
+		Email:        email,
+		PasswordHash: string(hashedPassword),
+		Points:       0,
+		LevelID:      primitive.NilObjectID,
+		GroupIDs:     []primitive.ObjectID{},
+		Streak:       0,
+	}
+
+	_, err = store.AddUser(context.Background(), user)
+	if err != nil {
+		return "", "", err
+	}
+
+	token, refreshToken, err := CreateTokens(newUserID.Hex()) 
 	if err != nil {
 		return "", "", err
 	}
@@ -179,22 +202,58 @@ func RefreshToken(userId string, refreshToken string) (string, string, error) {
 }
 
 // UpdateUser updates the details of the user with the given id.
-func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword string) (*model.User, error) {
-	// This function should validate the current password, and if it's correct, update the
-	// user's details with the new values. If the current password is not correct, it should
-	// return an error.
-	// For now, we'll just return a dummy user.
-	return &model.User{
-		ID:       primitive.NewObjectID().Hex(),
-		Username: newUsername,
-		Email:    newEmail,
-	}, nil
+func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword string) (bool, error) {
+
+	foundUser, err := store.FindUser(context.Background(), bson.M{"_id": userId})
+    if err != nil {
+        return false, errors.New("authentication failed")
+    }
+
+	err = bcrypt.CompareHashAndPassword([]byte(foundUser.PasswordHash), []byte(currentPassword))
+	if err != nil {
+		return false, errors.New("authentication failed")
+	}
+
+	update := bson.M{
+		"$set": bson.M{},
+	}
+
+	if newUsername != "" {
+		update["$set"].(bson.M)["username"] = newUsername
+	}
+
+	if newEmail != "" {
+		update["$set"].(bson.M)["email"] = newEmail
+	}
+
+	if newPassword != "" {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return false, err
+		}
+		update["$set"].(bson.M)["password_hash"] = string(hashedPassword)
+	}
+
+	if len(update["$set"].(bson.M)) == 0 {
+		return false, errors.New("nothing to update")
+	}
+
+	_, err = store.UpdateUser(context.Background(), bson.M{"_id": userId}, update)
+	if err != nil {
+		return false, errors.New("error updating user credentials")
+	}
+
+	return true, nil
 }
 
 // DeleteUser deletes the user with the given id.
 func DeleteUser(userId string) (bool, error) {
-	// This function should delete the user with the given id. If the user doesn't exist or
-	// there's an error deleting the user, it should return an error.
-	// For now, we'll just return true.
+
+	_, err := store.DeleteUser(context.Background(), bson.M{"_id": userId})
+
+	if err != nil {
+		return false, fmt.Errorf("error deleting user: %v", err)
+	}
+	
 	return true, nil
 }

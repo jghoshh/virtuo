@@ -10,7 +10,6 @@ func PrintBanner(message string) {
 	bannerLength := len(message) + 4
 	bannerLine := strings.Repeat(bannerChar, bannerLength)
 
-	fmt.Println()
 	fmt.Println(bannerLine)
 	fmt.Printf("%s %s %s\n", bannerChar, message, bannerChar)
 	fmt.Println(bannerLine)
@@ -18,12 +17,11 @@ func PrintBanner(message string) {
 }
 
 func PrintError(message string) {
-	message = "ERROR: " + message
-	bannerChar := "+"
+	message = "error: " + message
+	bannerChar := "*"
 	bannerLength := len(message) + 4
 	bannerLine := strings.Repeat(bannerChar, bannerLength)
 
-	fmt.Println()
 	fmt.Println(bannerLine)
 	fmt.Printf("%s %s %s\n", bannerChar, message, bannerChar)
 	fmt.Println(bannerLine)

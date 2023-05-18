@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"github.com/jghoshh/virtuo/utils"
 )
 
 // DecodeJWT decodes the provided JWT token and extracts the user ID.
@@ -119,11 +120,11 @@ func SignUpUser(username, email, password string) (string, error) {
 		return "", errors.New("username must be at least 2 characters")
 	}
 
-	if !validateEmail(email) {
+	if !utils.ValidateEmail(email) {
 		return "", errors.New("invalid email format")
 	}
 
-	if !validatePassword(password) {
+	if !utils.ValidatePassword(password) {
 		return "", errors.New("password must be at least 8 characters and contain both letters and numbers")
 	}
 

@@ -22,6 +22,8 @@ func main() {
 	authToken := os.Getenv("AUTH_TOKEN")
 	authTokenRefresh := os.Getenv("AUTH_TOKEN_REFRESH")
 	serverURL := os.Getenv("SERVER_URL")
+	dbURI := os.Getenv("MONGODB_URI")
+	dbName := os.Getenv("TEST_DB_NAME")
 
 	// Set default values if the environment variables are empty
 	if signingKey == "" {
@@ -38,6 +40,7 @@ func main() {
 	keyring.Delete("Virtuo", authTokenRefresh)
 
 	go server.Start(serverURL, signingKey)
-	client.InitAuthClient(serverURL, signingKey, authToken, authTokenRefresh)
+	client.InitAuthClient(dbName, dbURI, serverURL, signingKey, authToken, authTokenRefresh)
+	cmd.InitAuthCmd()
 	cmd.Execute()
 }

@@ -8,11 +8,8 @@ import (
 	"io"
 	"net/http"
 	"regexp"
-
 	"github.com/form3tech-oss/jwt-go"
 	"github.com/jghoshh/virtuo/auth"
-	"github.com/jghoshh/virtuo/graph/model"
-	"github.com/mitchellh/mapstructure"
 	"github.com/zalando/go-keyring"
 )
 
@@ -32,12 +29,12 @@ type TokenResult struct {
 
 // InitAuthClient initializes the jwtSigningKey and KeyringKey variables.
 // This function must be called before using any other functions in the package.
-func InitAuthClient(serverURL, signingKey, authToken, authTokenRefresh string) {
+func InitAuthClient(dbName, dbURL, serverURL, signingKey, authToken, authTokenRefresh string) {
 	jwtSigningKey = signingKey
 	KeyringKey = authToken
 	RefreshKeyringKey = authTokenRefresh
 	ServerURL = serverURL
-	auth.InitAuth("Virtuo", serverURL, signingKey)
+	auth.InitAuth(dbName, dbURL, signingKey)
 }
 
 // validateEmail takes an email string as input and returns a boolean
@@ -209,12 +206,8 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 		if rt, ok := refresh["refreshToken"].(string); ok {
 			refreshToken = rt
 		}
-	} else if updateUser, ok := data["updateUser"].(map[string]interface{}); ok {
-		var user model.User
-		err := mapstructure.Decode(updateUser, &user)
-		if err != nil {
-			return nil, nil, fmt.Errorf("response is invalid: %v", err)
-		}
+	} else if _, ok := data["updateUser"].(bool); ok {
+		return nil, resp, nil
 	} else if _, ok := data["signOut"].(bool); ok {
 		return nil, resp, nil
 	} else if _, ok := data["deleteUser"].(bool); ok {
@@ -374,11 +367,7 @@ func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) erro
 
 	query := `
 		mutation($input: UpdateUserInput!) {
-			updateUser(input: $input) {
-				id
-				username
-				email
-			}
+			updateUser(input: $input) 
 		}
 	`
 

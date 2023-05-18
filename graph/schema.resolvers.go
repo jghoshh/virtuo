@@ -12,6 +12,7 @@ import (
 	"github.com/jghoshh/virtuo/auth"
 	"github.com/jghoshh/virtuo/contextKey"
 	"github.com/jghoshh/virtuo/graph/model"
+	"github.com/jghoshh/virtuo/utils"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
@@ -21,11 +22,11 @@ func (r *mutationResolver) SignUp(ctx context.Context, user model.UserInput) (*m
 		return nil, fmt.Errorf("username must be at least 2 characters")
 	}
 
-	if !ValidateEmail(user.Email) {
+	if !utils.ValidateEmail(user.Email) {
 		return nil, fmt.Errorf("invalid email format")
 	}
 
-	if !ValidatePassword(user.Password) {
+	if !utils.ValidatePassword(user.Password) {
 		return nil, fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
 	}
 
@@ -127,7 +128,7 @@ func (r *mutationResolver) RefreshAccessToken(ctx context.Context, refreshToken 
 }
 
 // UpdateUser is the resolver for the updateUser field.
-func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (*model.User, error) {
+func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (bool, error) {
 	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
 
 	if ok {
@@ -137,7 +138,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 				"code": "401",
 			},
 		})
-		return nil, nil
+		return false, nil
 	}
 
 	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
@@ -149,7 +150,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 				"code": "401",
 			},
 		})
-		return nil, nil
+		return false, nil
 	}
 
 	// Ensure currentPassword is provided
@@ -160,7 +161,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 				"code": "400",
 			},
 		})
-		return nil, nil
+		return false, nil
 	}
 
 	// Ensure at least one of newEmail, newUsername, newPassword is provided
@@ -171,7 +172,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 				"code": "400",
 			},
 		})
-		return nil, nil
+		return false, nil
 	}
 
 	var newUsernameStr, newEmailStr, newPasswordStr string
@@ -184,38 +185,38 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 					"code": "400",
 				},
 			})
-			return nil, nil
+			return false, nil
 		}
 		newUsernameStr = *input.NewUsername
 	}
 
 	if input.NewEmail != nil {
-		if !ValidateEmail(*input.NewEmail) {
+		if !utils.ValidateEmail(*input.NewEmail) {
 			graphql.AddError(ctx, &gqlerror.Error{
 				Message: "invalid email format",
 				Extensions: map[string]interface{}{
 					"code": "400",
 				},
 			})
-			return nil, nil
+			return false, nil
 		}
 		newEmailStr = *input.NewEmail
 	}
 
 	if input.NewPassword != nil {
-		if !ValidatePassword(*input.NewPassword) {
+		if !utils.ValidatePassword(*input.NewPassword) {
 			graphql.AddError(ctx, &gqlerror.Error{
 				Message: "password must be at least 8 characters and contain both letters and numbers",
 				Extensions: map[string]interface{}{
 					"code": "400",
 				},
 			})
-			return nil, nil
+			return false, nil
 		}
 		newPasswordStr = *input.NewPassword
 	}
 
-	user, err := auth.UpdateUser(userId, input.CurrentPassword, newUsernameStr, newEmailStr, newPasswordStr)
+	_, err := auth.UpdateUser(userId, input.CurrentPassword, newUsernameStr, newEmailStr, newPasswordStr)
 
 	if err != nil {
 		graphql.AddError(ctx, &gqlerror.Error{
@@ -224,10 +225,10 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 				"code": "400",
 			},
 		})
-		return nil, nil
+		return false, nil
 	}
 
-	return user, nil
+	return true, nil
 }
 
 // DeleteUser is the resolver for the deleteUser field.
