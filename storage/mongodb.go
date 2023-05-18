@@ -202,6 +202,29 @@ func (m *MongoStorage) Connect(dbName, uri string) error {
 		return fmt.Errorf("error creating group level name index: %v", err)
 	}
 
+	// Initializing refresh tokens collection
+	refreshTokensCollection := m.client.Database(m.dbName).Collection("refreshTokens")
+
+	// Create the user_id index using the model defined previously
+	_, err = refreshTokensCollection.Indexes().CreateOne(ctx, userIdIndexModel)
+	if err != nil {
+		return fmt.Errorf("error creating user_id index: %v", err)
+	}
+
+	// Create an index on the "token" field. This will speed up queries on the "token" field
+	tokenIndexModel := mongo.IndexModel{
+		Keys: bson.M{
+			"token": 1, // 1 for ascending order
+		},
+		Options: options.Index(),
+	}
+
+	// Create the token index
+	_, err = refreshTokensCollection.Indexes().CreateOne(ctx, tokenIndexModel)
+	if err != nil {
+		return fmt.Errorf("error creating token index: %v", err)
+	}
+
 	return nil
 }
 

@@ -1,0 +1,40 @@
+type Query {
+  user(id: ID!): User
+}
+
+type User {
+  id: ID!
+  username: String!
+  email: String!
+  points: Int!
+  levelID: ID!
+  groupIDs: [ID!]
+  streak: Int!
+}
+
+type AuthPayload {
+  token: String!
+  refreshToken: String!
+}
+
+type Mutation {
+  signUp(user: UserInput!): AuthPayload!
+  signIn(username: String!, password: String!): AuthPayload!
+  signOut: Boolean!
+  refreshAccessToken(refreshToken: String!): AuthPayload!
+  updateUser(input: UpdateUserInput!): User!
+  deleteUser: Boolean!
+}
+
+input UserInput {
+  username: String!
+  password: String!
+  email: String!
+}
+
+input UpdateUserInput {
+  currentPassword: String!
+  newUsername: String
+  newEmail: String
+  newPassword: String
+}
