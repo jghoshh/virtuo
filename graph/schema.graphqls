@@ -6,15 +6,11 @@ type User {
   id: ID!
   username: String!
   email: String!
+  emailConfirmed: Boolean!
   points: Int!
   levelID: ID!
   groupIDs: [ID!]
   streak: Int!
-}
-
-type AuthPayload {
-  token: String!
-  refreshToken: String!
 }
 
 type Mutation {
@@ -24,12 +20,20 @@ type Mutation {
   refreshAccessToken(refreshToken: String!): AuthPayload!
   updateUser(input: UpdateUserInput!): Boolean!
   deleteUser: Boolean!
+  checkCredentials(input: UserInput!): Boolean!
+  resetPassword(input: ResetPasswordInput!): Boolean!
+  confirmEmail(confirmationToken: String!): Boolean! 
+}
+
+type AuthPayload {
+  token: String!
+  refreshToken: String!
 }
 
 input UserInput {
   username: String!
-  password: String!
   email: String!
+  password: String!
 }
 
 input UpdateUserInput {
@@ -37,4 +41,9 @@ input UpdateUserInput {
   newUsername: String
   newEmail: String
   newPassword: String
+}
+
+input ResetPasswordInput {
+  email: String!
+  newPassword: String!
 }

@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/bson"
-	"github.com/jghoshh/virtuo/models"
+	"github.com/jghoshh/virtuo/backend/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 	"errors"
@@ -223,6 +223,15 @@ func (m *MongoStorage) Connect(dbName, uri string) error {
 	_, err = refreshTokensCollection.Indexes().CreateOne(ctx, tokenIndexModel)
 	if err != nil {
 		return fmt.Errorf("error creating token index: %v", err)
+	}
+
+	// Initializing confirmations collection
+	confirmationsCollection := m.client.Database(m.dbName).Collection("confirmations")
+
+	// Create the user_id index
+	_, err = confirmationsCollection.Indexes().CreateOne(ctx, userIdIndexModel)
+	if err != nil {
+		return fmt.Errorf("error creating user_id index: %v", err)
 	}
 
 	return nil
@@ -519,5 +528,59 @@ func (m *MongoStorage) DeleteHabit(ctx context.Context, filter interface{}) (*De
 	if err != nil {
 		return nil, err
 	}
+	return &DeleteResult{DeletedCount: result.DeletedCount}, nil
+}
+
+// AddConfirmation adds a new confirmation document to the 'confirmations' collection.
+// The confirmation is provided as a pointer to a Confirmation instance.
+// Returns the added confirmation instance and an error if the insert operation fails.
+func (m *MongoStorage) AddConfirmation(ctx context.Context, confirmation *models.Confirmation) (*models.Confirmation, error) {
+	collection := m.client.Database(m.dbName).Collection("confirmations")
+	result, err := collection.InsertOne(ctx, confirmation)
+	if err != nil {
+		return nil, err
+	}
+
+	confirmation.ID = result.InsertedID.(primitive.ObjectID)
+	return confirmation, nil
+}
+
+// FindConfirmation finds a confirmation document in the 'confirmations' collection that matches the given filter.
+// Returns the found confirmation as a Confirmation instance and an error if the find operation fails.
+func (m *MongoStorage) FindConfirmation(ctx context.Context, filter interface{}) (*models.Confirmation, error) {
+	collection := m.client.Database(m.dbName).Collection("confirmations")
+	result := collection.FindOne(ctx, filter)
+	confirmation := &models.Confirmation{}
+	err := result.Decode(confirmation)
+	if err != nil {
+		return nil, err
+	}
+	return confirmation, nil
+}
+
+// UpdateConfirmation updates a confirmation document in the 'confirmations' collection that matches the given filter with the provided update.
+// Returns the result of the update operation as an UpdateResult instance and an error if the update operation fails.
+func (m *MongoStorage) UpdateConfirmation(ctx context.Context, filter interface{}, update interface{}) (*UpdateResult, error) {
+	collection := m.client.Database(m.dbName).Collection("confirmations")
+	result, err := collection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return nil, err
+	}
+	if result.MatchedCount == 0 {
+		return nil, errors.New("no confirmation found to update")
+	}
+
+	return &UpdateResult{MatchedCount: result.MatchedCount, ModifiedCount: result.ModifiedCount}, nil
+}
+
+// DeleteConfirmation deletes a confirmation document from the 'confirmations' collection that matches the given filter.
+// Returns the result of the delete operation as a DeleteResult instance and an error if the delete operation fails.
+func (m *MongoStorage) DeleteConfirmation(ctx context.Context, filter interface{}) (*DeleteResult, error) {
+	collection := m.client.Database(m.dbName).Collection("confirmations")
+	result, err := collection.DeleteOne(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
 	return &DeleteResult{DeletedCount: result.DeletedCount}, nil
 }

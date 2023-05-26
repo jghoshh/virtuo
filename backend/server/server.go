@@ -12,20 +12,21 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/jghoshh/virtuo/graph"
-    "github.com/jghoshh/virtuo/contextKey"
+    "github.com/jghoshh/virtuo/backend/server/contextKey"
 	"fmt"
 	"strings"
 	"context"
 )
 
+// jwtMiddleware is a middleware function that validates JWT tokens and injects user id or error into the request context.
 func jwtMiddleware(signingKey string, next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         authHeader := r.Header.Get("Authorization")
         if authHeader != "" {
-            fmt.Println("Authorization header is present")
+            log.Println("Authorization header is present")
             splitToken := strings.Split(authHeader, "Bearer ")
             if len(splitToken) == 2 {
-                fmt.Println("Token found in Authorization header")
+                log.Println("Token found in Authorization header")
                 token, err := jwt.Parse(splitToken[1], func(token *jwt.Token) (interface{}, error) {
                     if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
                         return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -33,32 +34,33 @@ func jwtMiddleware(signingKey string, next http.Handler) http.Handler {
                     return []byte(signingKey), nil
                 })
                 if err != nil {
-                    fmt.Println("Error occurred while parsing JWT token:", err)
+                    log.Println("Error occurred while parsing JWT token:", err)
                     if err, ok := err.(*jwt.ValidationError); ok && err.Errors == jwt.ValidationErrorExpired {
-                        fmt.Println("Token has expired")
+                        log.Println("Token has expired")
                         if claims, ok := token.Claims.(jwt.MapClaims); ok {
-                            fmt.Println("Claims found in expired token")
+                            log.Println("Claims found in expired token")
                             ctx := context.WithValue(r.Context(), contextKey.UserIDKey, claims["id"])
                             r = r.WithContext(ctx)
                         }
                     } else {
-                        fmt.Println("JWT token validation error:", err)
+                        log.Println("JWT token validation error:", err)
                         ctx := context.WithValue(r.Context(), contextKey.JwtErrorKey, err)
                         r = r.WithContext(ctx)
                     }
                 } else if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-                    fmt.Println("Valid token with claims")
+                    log.Println("Valid token with claims")
                     ctx := context.WithValue(r.Context(), contextKey.UserIDKey, claims["id"])
                     r = r.WithContext(ctx)
                 }
             }
         } else {
-            fmt.Println("No Authorization header present")
+            log.Println("No Authorization header present")
         }
         next.ServeHTTP(w, r)
     })
 }
 
+// recoveryMiddleware is a middleware function that recovers from panics and provides a generic error message to the client.
 func recoveryMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer func() {
@@ -71,6 +73,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// Start initializes and starts the GraphQL server. Runs on localhost:8080 by default.
 func Start(serverURL, signingKey string) {
     // Initialize a new router
     r := mux.NewRouter()
@@ -96,8 +99,7 @@ func Start(serverURL, signingKey string) {
     loggingRouter := handlers.LoggingHandler(os.Stdout, corsRouter)
 
     // Parsing the server url
-    rawURL := "http://localhost:8080"
-    u, err := url.Parse(rawURL)
+    u, err := url.Parse(serverURL)
     if err != nil {
 		panic(err)
 	}
@@ -110,5 +112,6 @@ func Start(serverURL, signingKey string) {
         ReadTimeout:  15 * time.Second,
     }
 
+    // Setting up the logging middleware
     log.Fatal(server.ListenAndServe())
 }

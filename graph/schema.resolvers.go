@@ -7,13 +7,10 @@ package graph
 import (
 	"context"
 	"fmt"
-
-	"github.com/99designs/gqlgen/graphql"
-	"github.com/jghoshh/virtuo/auth"
-	"github.com/jghoshh/virtuo/contextKey"
+	"github.com/jghoshh/virtuo/backend/server/auth"
+	"github.com/jghoshh/virtuo/backend/server/contextKey"
 	"github.com/jghoshh/virtuo/graph/model"
 	"github.com/jghoshh/virtuo/utils"
-	"github.com/vektah/gqlparser/v2/gqlerror"
 )
 
 // SignUp is the resolver for the signUp field.
@@ -33,14 +30,7 @@ func (r *mutationResolver) SignUp(ctx context.Context, user model.UserInput) (*m
 	token, refreshToken, err := auth.SignUp(user.Username, user.Email, user.Password)
 
 	if err != nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Path:    graphql.GetPath(ctx),
-			Message: err.Error(),
-			Extensions: map[string]interface{}{
-				"code": "400",
-			},
-		})
-		return nil, nil
+		return nil, err
 	}
 
 	authPayload := &model.AuthPayload{
@@ -56,14 +46,7 @@ func (r *mutationResolver) SignIn(ctx context.Context, username string, password
 	token, refreshToken, err := auth.SignIn(username, password)
 
 	if err != nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Path:    graphql.GetPath(ctx),
-			Message: "invalid username or password",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return nil, nil
+		return nil, err
 	}
 
 	authPayload := &model.AuthPayload{
@@ -76,8 +59,8 @@ func (r *mutationResolver) SignIn(ctx context.Context, username string, password
 
 // SignOut is the resolver for the signOut field.
 func (r *mutationResolver) SignOut(ctx context.Context) (bool, error) {
-	result := true
-	return result, nil
+	// For now and for simplicity, we will not implement server side sign out logic to invalidate tokens.
+	return true, nil
 }
 
 // RefreshAccessToken is the resolver for the refreshAccessToken field.
@@ -85,38 +68,19 @@ func (r *mutationResolver) RefreshAccessToken(ctx context.Context, refreshToken 
 	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
 
 	if ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "user unauthenticated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return nil, nil
+		return nil, fmt.Errorf("user unauthenticated")
 	}
 
 	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
 
 	if !ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "user unauthenticated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return nil, nil
+		return nil, fmt.Errorf("user unauthenticated")
 	}
 
 	token, refreshToken, err := auth.RefreshToken(userId, refreshToken)
 
 	if err != nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: err.Error(),
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-
-		return nil, nil
+		return nil, err
 	}
 
 	authPayload := &model.AuthPayload{
@@ -132,86 +96,43 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
 
 	if ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "user unauthenticated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("user unauthenticated")
 	}
 
 	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
 
 	if !ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "user unauthenticated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("user unauthenticated")
 	}
 
-	// Ensure currentPassword is provided
 	if input.CurrentPassword == "" {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "current password must be provided",
-			Extensions: map[string]interface{}{
-				"code": "400",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("current password must be provided")
 	}
 
 	// Ensure at least one of newEmail, newUsername, newPassword is provided
 	if input.NewEmail == nil && input.NewUsername == nil && input.NewPassword == nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "at least one of new email, new username or new password must be provided",
-			Extensions: map[string]interface{}{
-				"code": "400",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("at least one of new email, new username or new password must be provided")
 	}
 
 	var newUsernameStr, newEmailStr, newPasswordStr string
 
 	if input.NewUsername != nil {
 		if len(*input.NewUsername) <= 1 {
-			graphql.AddError(ctx, &gqlerror.Error{
-				Message: "username must be at least 2 characters",
-				Extensions: map[string]interface{}{
-					"code": "400",
-				},
-			})
-			return false, nil
+			return false, fmt.Errorf("username must be at least 2 characters")
 		}
 		newUsernameStr = *input.NewUsername
 	}
 
 	if input.NewEmail != nil {
 		if !utils.ValidateEmail(*input.NewEmail) {
-			graphql.AddError(ctx, &gqlerror.Error{
-				Message: "invalid email format",
-				Extensions: map[string]interface{}{
-					"code": "400",
-				},
-			})
-			return false, nil
+			return false, fmt.Errorf("invalid email format")
 		}
 		newEmailStr = *input.NewEmail
 	}
 
 	if input.NewPassword != nil {
 		if !utils.ValidatePassword(*input.NewPassword) {
-			graphql.AddError(ctx, &gqlerror.Error{
-				Message: "password must be at least 8 characters and contain both letters and numbers",
-				Extensions: map[string]interface{}{
-					"code": "400",
-				},
-			})
-			return false, nil
+			return false, fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
 		}
 		newPasswordStr = *input.NewPassword
 	}
@@ -219,13 +140,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 	_, err := auth.UpdateUser(userId, input.CurrentPassword, newUsernameStr, newEmailStr, newPasswordStr)
 
 	if err != nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: err.Error(),
-			Extensions: map[string]interface{}{
-				"code": "400",
-			},
-		})
-		return false, nil
+		return false, err
 	}
 
 	return true, nil
@@ -236,40 +151,77 @@ func (r *mutationResolver) DeleteUser(ctx context.Context) (bool, error) {
 	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
 
 	if ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "User unauthenticated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("user unauthenticated")
 	}
 
 	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
 
 	if !ok {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "User unauthenicated",
-			Extensions: map[string]interface{}{
-				"code": "401",
-			},
-		})
-		return false, nil
+		return false, fmt.Errorf("user unauthenticated")
 	}
 
-	res, err := auth.DeleteUser(userId)
+	_, err := auth.DeleteUser(userId)
 
 	if err != nil {
-		graphql.AddError(ctx, &gqlerror.Error{
-			Message: "Failed to delete user",
-			Extensions: map[string]interface{}{
-				"code": "500",
-			},
-		})
-		return false, nil
+		return false, err
 	}
 
-	return res, nil
+	return true, nil
+}
+
+// CheckCredentials is the resolver for the checkCredentials field.
+func (r *mutationResolver) CheckCredentials(ctx context.Context, input model.UserInput) (bool, error) {
+	if len(input.Username) < 2 {
+		return false, fmt.Errorf("username must be at least 2 characters")
+	}
+
+	if !utils.ValidateEmail(input.Email) {
+		return false, fmt.Errorf("invalid email format")
+	}
+
+	return auth.CheckCredentials(input.Username, input.Email, input.Password)
+}
+
+// ResetPassword is the resolver for the resetPassword field.
+func (r *mutationResolver) ResetPassword(ctx context.Context, input model.ResetPasswordInput) (bool, error) {
+	if !utils.ValidateEmail(input.Email) {
+		return false, fmt.Errorf("invalid email format")
+	}
+
+	err := auth.ResetPassword(input.Email, input.NewPassword)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// ConfirmEmail is the resolver for the confirmEmail field.
+func (r *mutationResolver) ConfirmEmail(ctx context.Context, confirmationToken string) (bool, error) {
+	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
+
+	if ok {
+		return false, fmt.Errorf("user unauthenticated")
+	}
+
+	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
+
+	if !ok {
+		return false, fmt.Errorf("user unauthenticated")
+	}
+
+	if confirmationToken == "" {
+		return false, fmt.Errorf("invalid confirmation token")
+	}
+
+	err := auth.ConfirmEmail(userId, confirmationToken)
+
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // User is the resolver for the user field.

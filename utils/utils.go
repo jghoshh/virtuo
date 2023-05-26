@@ -1,6 +1,12 @@
 package utils
 
-import "regexp"
+import (
+
+	"regexp"
+	"fmt"
+	"strings"
+
+	)
 
 // validateEmail takes an email string as input and returns a boolean indicating whether the input is a valid email address.
 func ValidateEmail(email string) bool {
@@ -17,4 +23,16 @@ func ValidatePassword(password string) bool {
 	containsLetter, _ := regexp.MatchString(`[a-zA-Z]`, password)
 	containsNumber, _ := regexp.MatchString(`[0-9]`, password)
 	return containsLetter && containsNumber
+}
+
+func PrintError(message string) {
+	message = "ERROR: " + message
+	bannerChar := "="
+	bannerLength := len(message) + 4
+	bannerLine := strings.Repeat(bannerChar, bannerLength)
+
+	fmt.Println(bannerLine)
+	fmt.Printf("%s %s %s\n", bannerChar, message, bannerChar)
+	fmt.Println(bannerLine)
+	fmt.Println()
 }

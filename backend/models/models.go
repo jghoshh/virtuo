@@ -5,14 +5,22 @@ import (
     "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type Confirmation struct {
+    ID                 primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UserID             primitive.ObjectID `bson:"user_id,omitempty" json:"user_id"`
+	ConfirmationToken  string             `bson:"token" json:"token"`
+	ExpiresAt          time.Time          `bson:"expires_at" json:"expires_at"`
+}
+
 type User struct {
     ID           primitive.ObjectID   `bson:"_id,omitempty" json:"id"`
     Username     string               `bson:"username" json:"username"`
     PasswordHash string               `bson:"password_hash" json:"password_hash"`
     Email        string               `bson:"email" json:"email"`
+    EmailConfirmed bool               `bson:"email_confirmed" json:"email_confirmed"`
     Points       int                  `bson:"points" json:"points"`
     LevelID      primitive.ObjectID   `bson:"level_id" json:"level_id"`
-    GroupIDs     []primitive.ObjectID `bson:"group_ids" json:"group_ids"` // Updated Field
+    GroupIDs     []primitive.ObjectID `bson:"group_ids" json:"group_ids"` 
     Streak       int                  `bson:"streak" json:"streak"`
 }
 

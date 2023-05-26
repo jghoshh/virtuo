@@ -7,18 +7,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"github.com/form3tech-oss/jwt-go"
-	"github.com/jghoshh/virtuo/auth"
 	"github.com/zalando/go-keyring"
+	"github.com/jghoshh/virtuo/utils"
+	"github.com/jghoshh/virtuo/graph/model"
 )
 
+// jwtSigningKey is used to sign and verify JWT tokens.
 var jwtSigningKey string
+
+// KeyringKey is used to store and retrieve the JWT token from the system keyring.
 var KeyringKey string
+
+// RefreshKeyringKey is used to store and retrieve the refresh token from the system keyring.
 var RefreshKeyringKey string
+
+// ServerURL is the URL of the server the client is connecting to.
 var ServerURL string
+
+// client is the HTTP client used to make requests to the server.
 var client = &http.Client{}
 
+// KeyringService is the name of the service in the system keyring where the JWT token and refresh token are stored.
 const KeyringService = "Virtuo"
 
 // TokenResult is a struct that represents the result of a request to an auth service, such as SignIn or SignUp.
@@ -29,33 +39,16 @@ type TokenResult struct {
 
 // InitAuthClient initializes the jwtSigningKey and KeyringKey variables.
 // This function must be called before using any other functions in the package.
-func InitAuthClient(dbName, dbURL, serverURL, signingKey, authToken, authTokenRefresh string) {
+func InitAuthClient(serverURL, signingKey, authToken, authTokenRefresh string) {
 	jwtSigningKey = signingKey
 	KeyringKey = authToken
 	RefreshKeyringKey = authTokenRefresh
 	ServerURL = serverURL
-	auth.InitAuth(dbName, dbURL, signingKey)
 }
 
-// validateEmail takes an email string as input and returns a boolean
-// indicating whether the input is a valid email address.
-func validateEmail(email string) bool {
-	const emailPattern = `^(?i)[a-z0-9._%+\-]+@(?:[a-z0-9\-]+\.)+[a-z]{2,}$`
-	matched, err := regexp.MatchString(emailPattern, email)
-	return err == nil && matched
-}
-
-// validatePassword takes a password string as input and returns a boolean indicating whether the input is a valid password.
-func validatePassword(password string) bool {
-	if len(password) < 8 {
-		return false
-	}
-	containsLetter, _ := regexp.MatchString(`[a-zA-Z]`, password)
-	containsNumber, _ := regexp.MatchString(`[0-9]`, password)
-	return containsLetter && containsNumber
-}
-
-// decodeJWT decodes the JWT token and returns the claims if the token is valid.
+// decodeJWT decodes a JWT token and returns the claims contained within it.
+// It returns an error if the token is invalid.
+// Returns the claims if the token is valid, else an error.
 func decodeJWT(tokenStr string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -78,7 +71,9 @@ func decodeJWT(tokenStr string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
-// isJwtTokenInKeyring checks if the keyring contains some token or not and returns it if it exists.
+// isJwtTokenInKeyring checks if the system keyring contains a JWT token.
+// Returns 'true' and the token if it exists, 'false' and an empty string if it doesn't.
+// Returns an error if there was a problem accessing the keyring.
 func isJwtTokenInKeyring() (bool, string, error) {
 	jwt, err := keyring.Get(KeyringService, KeyringKey)
 	if err != nil {
@@ -90,9 +85,32 @@ func isJwtTokenInKeyring() (bool, string, error) {
 	return true, jwt, nil
 }
 
-// IsUserAuthenticated checks if there is a valid JWT token stored in the keyring.
-// It returns the token if a valid token is found, an empty string otherwise.
-// If the token is expired or invalid, it tries to refresh the token using the refresh token.
+// ClearKeyring clears the JWT token and refresh token from the system keyring atomically.
+// Returns an error if there was a problem accessing or clearing the keyring.
+func ClearKeyring() error {
+	accessToken, err := keyring.Get(KeyringService, KeyringKey)
+	if err != nil {
+		return errors.New("failed to retrieve access token from keyring: " + err.Error())
+	}
+
+	err = keyring.Delete(KeyringService, KeyringKey)
+	if err != nil {
+		return errors.New("failed to delete access token from keyring: " + err.Error())
+	}
+
+	err = keyring.Delete(KeyringService, RefreshKeyringKey)
+	if err != nil {
+		keyring.Set(KeyringService, KeyringKey, accessToken)
+		return errors.New("failed to delete refresh token from keyring: " + err.Error())
+	}
+
+	return nil
+}
+
+// IsUserAuthenticated checks if the user is authenticated by checking if a valid JWT token 
+// exists in the system keyring. If a valid token is found, it returns the token, else it 
+// returns an empty string. If the token is expired or invalid, it tries to refresh the 
+// token using the refresh token.
 func IsUserAuthenticated() (string, error) {
 
 	hasJwt, tokenStr, err := isJwtTokenInKeyring()
@@ -122,8 +140,11 @@ func IsUserAuthenticated() (string, error) {
 	return tokenStr, nil
 }
 
-// sendGraphQLRequest sends a POST request to the server with the given GraphQL query, variables, and
-// an optional JWT token. It also handles the TokenResponse if the handleTokenResponse flag is set to true.
+// sendGraphQLRequest sends a GraphQL request to the server and handles the response.
+// The request can be a query or mutation, and it can optionally contain variables.
+// If handleTokenResponse is set to 'true', it will handle the TokenResult by saving 
+// the tokens to the keyring.
+// Returns the TokenResult, the HTTP response, and an error if there was a problem.
 func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse bool, variables ...map[string]interface{}) (*TokenResult, *http.Response, error) {
 
 	var token string
@@ -212,6 +233,10 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 		return nil, resp, nil
 	} else if _, ok := data["deleteUser"].(bool); ok {
 		return nil, resp, nil
+	} else if _, ok := data["confirmEmail"].(bool); ok {
+		return nil, resp, nil
+	} else if _, ok := data["checkCredentials"].(bool); ok {
+		return nil, resp, nil
 	} else {
 		return nil, nil, errors.New("unknown response type")
 	}
@@ -234,8 +259,8 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 	return &TokenResult{Token: token, RefreshToken: refreshToken}, resp, nil
 }
 
-// RefreshAccessToken sends a POST request to attain a refreshed access token from the server.
-// If there's an error making the request, it returns an error.
+// RefreshAccessToken attempts to refresh the JWT token using the refresh token.
+// Returns the refreshed token if successful, else an error.
 func RefreshAccessToken(tokenStr string) (string, error) {
 
 	refreshToken, err := keyring.Get(KeyringService, RefreshKeyringKey)
@@ -244,16 +269,19 @@ func RefreshAccessToken(tokenStr string) (string, error) {
 		return "", err
 	}
 
-	query := fmt.Sprintf(`
-		mutation {
-			refreshAccessToken(refreshToken: "%s") {
+	query := `
+		mutation refreshAccessToken($refreshToken: String!) {
+			refreshAccessToken(refreshToken: $refreshToken) {
 				token
-				refreshToken
 			}
 		}
-	`, refreshToken)
+	`
 
-	tokenResponse, _, err := sendGraphQLRequest(query, &tokenStr, true)
+	vars := map[string]interface{}{
+		"refreshToken": refreshToken,
+	}
+	
+	tokenResponse, _, err := sendGraphQLRequest(query, &tokenStr, true, vars)
 	
 	if err != nil {
 		return "", err
@@ -262,7 +290,41 @@ func RefreshAccessToken(tokenStr string) (string, error) {
 	return tokenResponse.Token, nil
 }
 
-// SignIn sends a GraphQL mutation request to signIn a user.
+// ConfirmEmail attempts to confirm the user's email address using the provided confirmation token.
+// Returns an error if the confirmation operation fails.
+func ConfirmEmail(confirmationToken string) error {
+
+	token, err := IsUserAuthenticated()
+
+	if err != nil {
+		return err
+	}
+
+	if token == "" {
+		return errors.New("no user is currently signed in")
+	}
+
+	query := `
+		mutation confirmEmail($confirmationToken: String!) {
+			confirmEmail(confirmationToken: $confirmationToken)
+		}
+	`
+
+	vars := map[string]interface{}{
+		"confirmationToken": confirmationToken,
+	}
+	
+	_, _, err = sendGraphQLRequest(query, &token, false, vars)
+	
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// SignIn attempts to sign in a user with the provided username and password.
+// Returns the JWT token and refresh token if the sign in was successful, else an error.
 func SignIn(username, password string) (string, string, error) {
 
 	isSignedIn, _, err := isJwtTokenInKeyring()
@@ -275,26 +337,30 @@ func SignIn(username, password string) (string, string, error) {
 		return "", "", errors.New("a user is already signed in")
 	}
 
-	query := fmt.Sprintf(`
-		mutation {
-			signIn(username: "%s", password: "%s") {
+	query := `
+		mutation signIn($username: String!, $password: String!) {
+			signIn(username: $username, password: $password) {
 				token
 				refreshToken
 			}
 		}
-	`, username, password)
+	`
 	
-	tokenResponse, _, err := sendGraphQLRequest(query, nil, true)
+	vars := map[string]interface{}{
+		"username": username,
+		"password": password,
+	}
+	
+	tokenResponse, _, err := sendGraphQLRequest(query, nil, true, vars)
 	if err != nil {
 		return "", "", err
 	}
 
-	PrintBanner("signed in successfully")
-
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
 }
 
-// SignUp sends a GraphQL mutation request to signUp a user.
+// SignUp attempts to sign up a new user with the provided username, email, and password.
+// Returns the JWT token and refresh token if the sign up was successful, else an error.
 func SignUp(username, email, password string) (string, string, error) {
 
 	isSignedIn, _, err := isJwtTokenInKeyring()
@@ -311,34 +377,44 @@ func SignUp(username, email, password string) (string, string, error) {
 		return "", "", errors.New("username must be at least 2 characters")
 	}
 
-	if !validateEmail(email) {
+	if !utils.ValidateEmail(email) {
 		return "", "", errors.New("invalid email format")
 	}
 
-	if !validatePassword(password) {
+	if !utils.ValidatePassword(password) {
 		return "", "", errors.New("password must be at least 8 characters and contain both letters and numbers")
 	}
 
-	query := fmt.Sprintf(`
-		mutation {
-			signUp(user: {username: "%s", email: "%s", password: "%s"}) {
+
+	query := `
+		mutation signUp($user: UserInput!) {
+			signUp(user: $user) {
 				token
 				refreshToken
 			}
 		}
-	`, username, email, password)
+	`
 
-	tokenResponse, _, err := sendGraphQLRequest(query, nil, true)
+	vars := map[string]interface{}{
+		"user": model.UserInput{
+			Username: username,
+			Email:    email,
+			Password: password,
+		},
+	}
+	
+	tokenResponse, _, err := sendGraphQLRequest(query, nil, true, vars)
 	if err != nil {
 		return "", "", err
 	}
 
-	PrintBanner("signed up successfully")
-
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
 }
 
-// UpdateUser sends a GraphQL mutation to the server to update user information.
+// UpdateUser attempts to update the current user's information.
+// It requires the current password for authentication, and the new username, email, and 
+// password to update. Returns an error if the update operation fails, or if no fields to 
+// update were provided.
 func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) error {
 
 	token, err := IsUserAuthenticated()
@@ -358,40 +434,50 @@ func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) erro
 	if newUsername != "" && len(newUsername) <= 1 {
 		return errors.New("new username must be at least 2 characters")
 	}
-	if newEmail != "" && !validateEmail(newEmail) {
+	if newEmail != "" && !utils.ValidateEmail(newEmail) {
 		return errors.New("new email is in invalid format")
 	}
-	if newPassword != "" && !validatePassword(newPassword) {
+	if newPassword != "" && !utils.ValidatePassword(newPassword) {
 		return errors.New("new password must be at least 8 characters and contain both letters and numbers")
 	}
 
 	query := `
-		mutation($input: UpdateUserInput!) {
+		mutation updateUser($input: UpdateUserInput!) {
 			updateUser(input: $input) 
 		}
 	`
 
-	variables := map[string]interface{}{
-		"input": map[string]interface{}{
-			"currentPassword": currentPassword,
-			"newUsername":     newUsername,
-			"newEmail":        newEmail,
-			"newPassword":     newPassword,
-		},
+	input := model.UpdateUserInput{
+		CurrentPassword: currentPassword,
 	}
 
-	_, _, err = sendGraphQLRequest(query, &token, false, variables)
+	if newUsername != "" {
+		input.NewUsername = &newUsername
+	}
+
+	if newEmail != "" {
+		input.NewEmail = &newEmail
+	}
+
+	if newPassword != "" {
+		input.NewPassword = &newPassword
+	}
+
+	vars := map[string]interface{}{
+		"input": input,
+	}
+
+	_, _, err = sendGraphQLRequest(query, &token, false, vars)
 	if err != nil {
 		return err
 	}
-	
-	PrintBanner("updated user succesfully")
 
 	return nil
 }
 
-// SignOutUser sends a GraphQL mutation to the server to invalidate the JWT token
-// and then removes the JWT token and refresh token stored in the keyring, effectively signing out the user.
+// SignOut signs out the current user by invalidating the JWT token on the server 
+// and removing the tokens from the system keyring.
+// Returns an error if the sign out operation fails.
 func SignOut() error {
 
 	token, err := IsUserAuthenticated()
@@ -405,7 +491,7 @@ func SignOut() error {
 	}
 
 	query := `
-		mutation {
+		mutation signOut {
 			signOut
 		}
 	`
@@ -415,24 +501,16 @@ func SignOut() error {
 		return err
 	}
 
-	err = keyring.Delete(KeyringService, KeyringKey)
+	err = ClearKeyring()
 	if err != nil {
-		return errors.New("failed to delete access token from keyring: " + err.Error())
+		return err
 	}
-
-	err = keyring.Delete(KeyringService, RefreshKeyringKey)
-	if err != nil {
-		keyring.Set(KeyringService, KeyringKey, token)
-		return errors.New("failed to delete refresh token from keyring: " + err.Error())
-	}
-
-	PrintBanner("user signed out succesfully")
 
 	return nil
 }
 
-// DeleteUser sends a GraphQL mutation to the server to delete the currently authenticated user.
-// It signs out the user by calling the SignOutUser function.
+// DeleteUser deletes the currently authenticated user.
+// It then signs out the user by calling the SignOutUser function.
 func DeleteUser() error {
 
 	token, err := IsUserAuthenticated()
@@ -446,7 +524,7 @@ func DeleteUser() error {
 	}
 
 	query := `
-		mutation {
+		mutation deleteUser {
 			deleteUser
 		}
 	`
@@ -462,7 +540,17 @@ func DeleteUser() error {
 		return err
 	}
 
-	PrintBanner("user deleted succesfully")
+	return nil
+}
 
+func RequestPasswordReset(email string) error {
+	return nil
+}
+
+func VerifyPasswordToken(email, token string) error {
+	return nil
+}
+
+func ResetPassword(email, token, newPassword string) error {
 	return nil
 }

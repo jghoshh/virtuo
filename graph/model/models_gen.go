@@ -7,6 +7,11 @@ type AuthPayload struct {
 	RefreshToken string `json:"refreshToken"`
 }
 
+type ResetPasswordInput struct {
+	Email       string `json:"email"`
+	NewPassword string `json:"newPassword"`
+}
+
 type UpdateUserInput struct {
 	CurrentPassword string  `json:"currentPassword"`
 	NewUsername     *string `json:"newUsername,omitempty"`
@@ -15,17 +20,18 @@ type UpdateUserInput struct {
 }
 
 type User struct {
-	ID       string   `json:"id"`
-	Username string   `json:"username"`
-	Email    string   `json:"email"`
-	Points   int      `json:"points"`
-	LevelID  string   `json:"levelID"`
-	GroupIDs []string `json:"groupIDs,omitempty"`
-	Streak   int      `json:"streak"`
+	ID             string   `json:"id"`
+	Username       string   `json:"username"`
+	Email          string   `json:"email"`
+	EmailConfirmed bool     `json:"emailConfirmed"`
+	Points         int      `json:"points"`
+	LevelID        string   `json:"levelID"`
+	GroupIDs       []string `json:"groupIDs,omitempty"`
+	Streak         int      `json:"streak"`
 }
 
 type UserInput struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
 	Email    string `json:"email"`
+	Password string `json:"password"`
 }

@@ -9,7 +9,7 @@ import (
 	"os"
 	"testing"
 	"time"
-	"github.com/jghoshh/virtuo/models"
+	"github.com/jghoshh/virtuo/backend/models"
 	"github.com/joho/godotenv"
 )
 

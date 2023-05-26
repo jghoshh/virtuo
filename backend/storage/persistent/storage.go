@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"github.com/jghoshh/virtuo/models"
+	"github.com/jghoshh/virtuo/backend/models"
 )
 
 // DeleteResult represents the result of a deletion operation in MongoDB,
@@ -19,7 +19,8 @@ type UpdateResult struct {
 	ModifiedCount int64
 }
 
-// StorageInterface defines the set of methods that any storage backend needs to implement for the 'virtuo' application.
+// StorageInterface defines the set of methods that any persistent storage 
+// backend needs to implement.
 type StorageInterface interface {
 	// Establishes a connection to the storage backend.
 	Connect(dbName, uri string) error
@@ -43,6 +44,14 @@ type StorageInterface interface {
 	UpdateHabit(ctx context.Context, filter interface{}, update interface{}) (*UpdateResult, error)
 	// Deletes a habit in the storage backend using a filter.
 	DeleteHabit(ctx context.Context, filter interface{}) (*DeleteResult, error)
+	// Adds a new confirmation to the storage backend.
+	AddConfirmation(ctx context.Context, confirmation *models.Confirmation) (*models.Confirmation, error)
+	// Finds a confirmation in the storage backend using a filter.
+	FindConfirmation(ctx context.Context, filter interface{}) (*models.Confirmation, error)
+	// Updates an existing confirmation in the storage backend using a filter and update instructions.
+	UpdateConfirmation(ctx context.Context, filter interface{}, update interface{}) (*UpdateResult, error)
+	// Deletes a confirmation in the storage backend using a filter.
+	DeleteConfirmation(ctx context.Context, filter interface{}) (*DeleteResult, error)
 }
 
 // NewStorage creates a new StorageInterface with a MongoDB backend,
