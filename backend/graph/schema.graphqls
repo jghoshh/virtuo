@@ -15,7 +15,7 @@ type User {
 
 type Mutation {
   signUp(user: UserInput!): AuthPayload!
-  signIn(username: String!, password: String!): AuthPayload!
+  signIn(username: String!, password: String!): SignInPayload!
   signOut: Boolean!
   refreshAccessToken(refreshToken: String!): AuthPayload!
   updateUser(input: UpdateUserInput!): Boolean!
@@ -23,6 +23,12 @@ type Mutation {
   checkCredentials(input: UserInput!): Boolean!
   resetPassword(input: ResetPasswordInput!): Boolean!
   confirmEmail(confirmationToken: String!): Boolean! 
+}
+
+type SignInPayload {
+  token: String!
+  refreshToken: String!
+  emailConfirmed: Boolean!  
 }
 
 type AuthPayload {

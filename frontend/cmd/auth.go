@@ -5,7 +5,7 @@ import (
 	ishell "github.com/abiosoft/ishell"
 	"github.com/common-nighthawk/go-figure"
 	"github.com/jghoshh/virtuo/frontend/client"
-	"github.com/jghoshh/virtuo/utils"
+	"github.com/jghoshh/virtuo/lib/utils"
 	"fmt"
 	"os"
 )
@@ -113,7 +113,7 @@ func InitAuthCmd() {
 						c.Println()
 					}
 				}
-				
+
 				_, _, err := client.SignUp(username, email, password)
 				if err != nil {
 					utils.PrintError(err.Error())

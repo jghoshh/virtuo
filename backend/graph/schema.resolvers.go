@@ -7,10 +7,11 @@ package graph
 import (
 	"context"
 	"fmt"
+
 	"github.com/jghoshh/virtuo/backend/server/auth"
-	"github.com/jghoshh/virtuo/backend/server/contextKey"
-	"github.com/jghoshh/virtuo/graph/model"
-	"github.com/jghoshh/virtuo/utils"
+	contextKey "github.com/jghoshh/virtuo/backend/server/context_key"
+	"github.com/jghoshh/virtuo/lib/graph_models"
+	"github.com/jghoshh/virtuo/lib/utils"
 )
 
 // SignUp is the resolver for the signUp field.
@@ -42,19 +43,20 @@ func (r *mutationResolver) SignUp(ctx context.Context, user model.UserInput) (*m
 }
 
 // SignIn is the resolver for the signIn field.
-func (r *mutationResolver) SignIn(ctx context.Context, username string, password string) (*model.AuthPayload, error) {
+func (r *mutationResolver) SignIn(ctx context.Context, username string, password string) (*model.SignInPayload, error) {
 	token, refreshToken, err := auth.SignIn(username, password)
 
 	if err != nil {
 		return nil, err
 	}
 
-	authPayload := &model.AuthPayload{
-		Token:        token,
-		RefreshToken: refreshToken,
+	signInPayload := &model.SignInPayload{
+		Token:          token,
+		RefreshToken:   refreshToken,
+		EmailConfirmed: false,
 	}
 
-	return authPayload, nil
+	return signInPayload, nil
 }
 
 // SignOut is the resolver for the signOut field.

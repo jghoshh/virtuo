@@ -13,7 +13,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/jghoshh/virtuo/graph/model"
+	"github.com/jghoshh/virtuo/lib/graph_models"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -65,6 +65,12 @@ type ComplexityRoot struct {
 		User func(childComplexity int, id string) int
 	}
 
+	SignInPayload struct {
+		EmailConfirmed func(childComplexity int) int
+		RefreshToken   func(childComplexity int) int
+		Token          func(childComplexity int) int
+	}
+
 	User struct {
 		Email          func(childComplexity int) int
 		EmailConfirmed func(childComplexity int) int
@@ -79,7 +85,7 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	SignUp(ctx context.Context, user model.UserInput) (*model.AuthPayload, error)
-	SignIn(ctx context.Context, username string, password string) (*model.AuthPayload, error)
+	SignIn(ctx context.Context, username string, password string) (*model.SignInPayload, error)
 	SignOut(ctx context.Context) (bool, error)
 	RefreshAccessToken(ctx context.Context, refreshToken string) (*model.AuthPayload, error)
 	UpdateUser(ctx context.Context, input model.UpdateUserInput) (bool, error)
@@ -230,6 +236,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.User(childComplexity, args["id"].(string)), true
+
+	case "SignInPayload.emailConfirmed":
+		if e.complexity.SignInPayload.EmailConfirmed == nil {
+			break
+		}
+
+		return e.complexity.SignInPayload.EmailConfirmed(childComplexity), true
+
+	case "SignInPayload.refreshToken":
+		if e.complexity.SignInPayload.RefreshToken == nil {
+			break
+		}
+
+		return e.complexity.SignInPayload.RefreshToken(childComplexity), true
+
+	case "SignInPayload.token":
+		if e.complexity.SignInPayload.Token == nil {
+			break
+		}
+
+		return e.complexity.SignInPayload.Token(childComplexity), true
 
 	case "User.email":
 		if e.complexity.User.Email == nil {
@@ -383,7 +410,7 @@ func (ec *executionContext) field_Mutation_checkCredentials_args(ctx context.Con
 	var arg0 model.UserInput
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUserInput(ctx, tmp)
+		arg0, err = ec.unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUserInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -428,7 +455,7 @@ func (ec *executionContext) field_Mutation_resetPassword_args(ctx context.Contex
 	var arg0 model.ResetPasswordInput
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNResetPasswordInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐResetPasswordInput(ctx, tmp)
+		arg0, err = ec.unmarshalNResetPasswordInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐResetPasswordInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -467,7 +494,7 @@ func (ec *executionContext) field_Mutation_signUp_args(ctx context.Context, rawA
 	var arg0 model.UserInput
 	if tmp, ok := rawArgs["user"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
-		arg0, err = ec.unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUserInput(ctx, tmp)
+		arg0, err = ec.unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUserInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -482,7 +509,7 @@ func (ec *executionContext) field_Mutation_updateUser_args(ctx context.Context, 
 	var arg0 model.UpdateUserInput
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNUpdateUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUpdateUserInput(ctx, tmp)
+		arg0, err = ec.unmarshalNUpdateUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUpdateUserInput(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -675,7 +702,7 @@ func (ec *executionContext) _Mutation_signUp(ctx context.Context, field graphql.
 	}
 	res := resTmp.(*model.AuthPayload)
 	fc.Result = res
-	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
+	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐAuthPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_signUp(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -734,9 +761,9 @@ func (ec *executionContext) _Mutation_signIn(ctx context.Context, field graphql.
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.AuthPayload)
+	res := resTmp.(*model.SignInPayload)
 	fc.Result = res
-	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
+	return ec.marshalNSignInPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐSignInPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_signIn(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -748,11 +775,13 @@ func (ec *executionContext) fieldContext_Mutation_signIn(ctx context.Context, fi
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "token":
-				return ec.fieldContext_AuthPayload_token(ctx, field)
+				return ec.fieldContext_SignInPayload_token(ctx, field)
 			case "refreshToken":
-				return ec.fieldContext_AuthPayload_refreshToken(ctx, field)
+				return ec.fieldContext_SignInPayload_refreshToken(ctx, field)
+			case "emailConfirmed":
+				return ec.fieldContext_SignInPayload_emailConfirmed(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type AuthPayload", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type SignInPayload", field.Name)
 		},
 	}
 	defer func() {
@@ -841,7 +870,7 @@ func (ec *executionContext) _Mutation_refreshAccessToken(ctx context.Context, fi
 	}
 	res := resTmp.(*model.AuthPayload)
 	fc.Result = res
-	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
+	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐAuthPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_refreshAccessToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1163,7 +1192,7 @@ func (ec *executionContext) _Query_user(ctx context.Context, field graphql.Colle
 	}
 	res := resTmp.(*model.User)
 	fc.Result = res
-	return ec.marshalOUser2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalOUser2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1332,6 +1361,138 @@ func (ec *executionContext) fieldContext_Query___schema(ctx context.Context, fie
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SignInPayload_token(ctx context.Context, field graphql.CollectedField, obj *model.SignInPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SignInPayload_token(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Token, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SignInPayload_token(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SignInPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SignInPayload_refreshToken(ctx context.Context, field graphql.CollectedField, obj *model.SignInPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SignInPayload_refreshToken(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.RefreshToken, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SignInPayload_refreshToken(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SignInPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SignInPayload_emailConfirmed(ctx context.Context, field graphql.CollectedField, obj *model.SignInPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SignInPayload_emailConfirmed(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.EmailConfirmed, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SignInPayload_emailConfirmed(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SignInPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3816,6 +3977,48 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
+var signInPayloadImplementors = []string{"SignInPayload"}
+
+func (ec *executionContext) _SignInPayload(ctx context.Context, sel ast.SelectionSet, obj *model.SignInPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, signInPayloadImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SignInPayload")
+		case "token":
+
+			out.Values[i] = ec._SignInPayload_token(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "refreshToken":
+
+			out.Values[i] = ec._SignInPayload_refreshToken(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "emailConfirmed":
+
+			out.Values[i] = ec._SignInPayload_emailConfirmed(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
 var userImplementors = []string{"User"}
 
 func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
@@ -4208,11 +4411,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAuthPayload2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v model.AuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthPayload2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v model.AuthPayload) graphql.Marshaler {
 	return ec._AuthPayload(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.AuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.AuthPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4267,9 +4470,23 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNResetPasswordInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐResetPasswordInput(ctx context.Context, v interface{}) (model.ResetPasswordInput, error) {
+func (ec *executionContext) unmarshalNResetPasswordInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐResetPasswordInput(ctx context.Context, v interface{}) (model.ResetPasswordInput, error) {
 	res, err := ec.unmarshalInputResetPasswordInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNSignInPayload2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐSignInPayload(ctx context.Context, sel ast.SelectionSet, v model.SignInPayload) graphql.Marshaler {
+	return ec._SignInPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSignInPayload2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐSignInPayload(ctx context.Context, sel ast.SelectionSet, v *model.SignInPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SignInPayload(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v interface{}) (string, error) {
@@ -4287,12 +4504,12 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalNUpdateUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUpdateUserInput(ctx context.Context, v interface{}) (model.UpdateUserInput, error) {
+func (ec *executionContext) unmarshalNUpdateUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUpdateUserInput(ctx context.Context, v interface{}) (model.UpdateUserInput, error) {
 	res, err := ec.unmarshalInputUpdateUserInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUserInput(ctx context.Context, v interface{}) (model.UserInput, error) {
+func (ec *executionContext) unmarshalNUserInput2githubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUserInput(ctx context.Context, v interface{}) (model.UserInput, error) {
 	res, err := ec.unmarshalInputUserInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -4630,7 +4847,7 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalOUser2ᚖgithubᚗcomᚋjghoshhᚋvirtuoᚋgraph_modelsᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}

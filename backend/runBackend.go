@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/jghoshh/virtuo/backend/queue"
 	"github.com/jghoshh/virtuo/backend/server"
@@ -58,6 +56,7 @@ func RunBackend() {
 	// Start the core server
 	go server.Start(serverURL, signingKey)
 
+	/**
 	// Setting up the signal interrupt handler to gracefully shutdown our server
 	sigs := make(chan os.Signal, 1)
 
@@ -72,4 +71,5 @@ func RunBackend() {
 
 
 	select {}
+	**/
 }

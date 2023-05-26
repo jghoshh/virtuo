@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"github.com/form3tech-oss/jwt-go"
 	"github.com/zalando/go-keyring"
-	"github.com/jghoshh/virtuo/utils"
-	"github.com/jghoshh/virtuo/graph/model"
+	"github.com/jghoshh/virtuo/lib/utils"
+	"github.com/jghoshh/virtuo/lib/graph_models"
 )
 
 // jwtSigningKey is used to sign and verify JWT tokens.

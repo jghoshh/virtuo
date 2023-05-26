@@ -12,6 +12,12 @@ type ResetPasswordInput struct {
 	NewPassword string `json:"newPassword"`
 }
 
+type SignInPayload struct {
+	Token          string `json:"token"`
+	RefreshToken   string `json:"refreshToken"`
+	EmailConfirmed bool   `json:"emailConfirmed"`
+}
+
 type UpdateUserInput struct {
 	CurrentPassword string  `json:"currentPassword"`
 	NewUsername     *string `json:"newUsername,omitempty"`

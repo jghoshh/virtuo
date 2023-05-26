@@ -7,6 +7,7 @@ require (
 	github.com/abiosoft/ishell v2.0.0+incompatible
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible
+	github.com/go-redis/redis/v8 v8.11.5
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/joho/godotenv v1.5.1
@@ -30,7 +31,6 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
 	github.com/flynn-archive/go-shlex v0.0.0-20150515145356-3f9db97f8568 // indirect
-	github.com/go-redis/redis/v8 v8.11.5 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect

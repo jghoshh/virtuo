@@ -5,10 +5,20 @@ import (
 	"net/smtp"
 )
 
+// smtpServer is a string that stores the address of the SMTP server which is used to send emails.
 var smtpServer string
+
+// auth is an smtp.Auth struct that stores the authentication data needed to connect to the SMTP server.
+// It is initialized by the smtp.PlainAuth function, which takes the username and password of the email sender.
 var auth smtp.Auth
+
+// fromEmail is a string that stores the email address of the sender. This is used as the "From" address in the emails that are sent.
 var fromEmail string
 
+// InitEmailService initializes the email service by establishing an SMTP connection
+// to a specified email server. It takes the email sender's address and password as
+// input parameters. Returns a boolean indicating the success of the operation and
+// an error if any occurred during the process.
 func InitEmailService(sender, password string) (bool, error) {
 	smtpServer = "smtp.gmail.com:587"
 	fromEmail = sender
@@ -33,7 +43,10 @@ func InitEmailService(sender, password string) (bool, error) {
 	return true, nil
 }
 
-
+// SendEmail sends an email to the specified recipient with a given token.
+// It creates an email with a confirmation token embedded in an HTML template,
+// and sends it using the SMTP server connection established by InitEmailService.
+// Returns an error if any occurred during the process.
 func SendEmail(to, token string) error {
 	fmt.Println("sending email")
 

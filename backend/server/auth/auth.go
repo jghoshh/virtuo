@@ -13,7 +13,7 @@ import (
 	"github.com/jghoshh/virtuo/backend/storage/persistent"
 	"github.com/jghoshh/virtuo/backend/models"
 	"github.com/jghoshh/virtuo/backend/queue"
-	"github.com/jghoshh/virtuo/utils"
+	"github.com/jghoshh/virtuo/lib/utils"
 	"crypto/rand"
 	"encoding/base32"
 )
@@ -145,6 +145,7 @@ func SignIn(username string, password string) (string, string, error) {
 		return "", "", err
 	}
 
+	// Need to return confirmed = False
 	return token, refreshToken, nil
 }
 
