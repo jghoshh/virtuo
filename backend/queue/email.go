@@ -11,7 +11,7 @@ import (
 	"errors"
 )
 
-// globalCount is a variable used in the round robin algorithm to assign producers to each email message.
+// globalCount is a global variable used in the round robin algorithm to assign producers to each email message.
 var globalCount int
 
 // EmailProducerFactory is a struct for creating new EmailProducer instances
@@ -45,8 +45,14 @@ type EmailMessage struct {
 	To    string `json:"to"`    // the recipient of the message
 }
 
-// CreateProducer is a method on EmailProducerFactory for creating a new EmailProducer
-// Returns a new instance of EmailProducer.
+// CreateProducer is a method on EmailProducerFactory for creating a new instance of EmailProducer.
+// It accepts three arguments:
+// - conn: A pointer to an AMQP connection.
+// - ch: A pointer to an AMQP channel.
+// - queue: A pointer to an AMQP queue.
+//
+// This method performs the task of instantiating a new EmailProducer with the given connection, channel, and queue.
+// The function returns a new instance of EmailProducer and an error. In the current implementation, the error is always nil.
 func (f *EmailProducerFactory) CreateProducer(conn *amqp.Connection, ch *amqp.Channel, queue *amqp.Queue) (Producer, error) {
 	// We always nil for error for now. If in the future we needed to do some setup before returning the producer, 
 	// we could employ error checking there.
@@ -57,8 +63,14 @@ func (f *EmailProducerFactory) CreateProducer(conn *amqp.Connection, ch *amqp.Ch
 	}, nil
 }
 
-// CreateConsumer is a method on EmailConsumerFactory for creating a new EmailConsumer
-// Returns a new instance of EmailConsumer or error in case of failure.
+// CreateConsumer is a method on EmailConsumerFactory for creating a new instance of EmailConsumer.
+// It accepts three arguments:
+// - conn: A pointer to an AMQP connection.
+// - ch: A pointer to an AMQP channel.
+// - queue: A pointer to an AMQP queue.
+//
+// This method performs the task of instantiating a new EmailConsumer with the given connection, channel, queue, and cache.
+// The function returns a new instance of EmailConsumer and an error. In the current implementation, the error is always nil.
 func (f *EmailConsumerFactory) CreateConsumer(conn *amqp.Connection, ch *amqp.Channel, queue *amqp.Queue) (Consumer, error) {
 	// We always nil for error for now. If in the future we needed to do some setup before returning the producer, 
 	// we could employ error checking there.
@@ -70,8 +82,12 @@ func (f *EmailConsumerFactory) CreateConsumer(conn *amqp.Connection, ch *amqp.Ch
     }, nil
 }
 
-// Publish is a method on EmailProducer for publishing a message to the AMQP queue
-// Returns nil on successful publish or an error in case of failure.
+// Publish is a method on EmailProducer for publishing a message to the AMQP queue.
+// It accepts a single argument:
+// - body: A byte array containing the message to be published.
+//
+// This method performs the task of publishing the given message to the queue.
+// The function returns an error if there was a problem with publishing the message.
 func (ep *EmailProducer) Publish(body []byte) error {
 	err := ep.channel.Publish(
 		"",             // exchange
@@ -89,8 +105,13 @@ func (ep *EmailProducer) Publish(body []byte) error {
 	return nil
 }
 
-// Consume is a method on EmailConsumer for consuming messages from the AMQP queue
-// Returns a channel of deliveries from the queue or an error in case of failure.
+// Consume is a method on EmailConsumer for consuming messages from the AMQP queue.
+// It accepts a single argument:
+// - ctx: The context within which the method is being called.
+//
+// This method performs several tasks. It sets up a consumer on the queue and then launches a goroutine that continuously reads from the queue.
+// It handles each message by unmarshalling it, checking its processed state from the cache, and then either processing it (sending an email) or discarding it.
+// The function returns a channel of deliveries from the queue and an error if there was a problem with setting up the consumer.
 func (ec *EmailConsumer) Consume(ctx context.Context) (<-chan amqp.Delivery, error) {
 	msgs, err := ec.channel.Consume(
 		ec.queue.Name,
@@ -158,9 +179,15 @@ func (ec *EmailConsumer) Consume(ctx context.Context) (<-chan amqp.Delivery, err
 	return msgs, nil
 }
 
-// BuildEmailQueue initializes a new Queue for handling email messages.
-// It creates a specified number of EmailProducer and EmailConsumer instances using factories 
-// and initializes a new Queue with the created producers and consumers. 
+// BuildEmailQueue is a function that initializes a new Queue for handling email messages.
+// It accepts four arguments:
+// - rabbitMQURL: A string containing the URL of the RabbitMQ server.
+// - numProducers: An integer indicating the number of producers to create.
+// - numConsumers: An integer indicating the number of consumers to create.
+// - emailCache: A CacheInterface instance to be used for caching email messages.
+//
+// This function performs several tasks. It creates the specified number of EmailProducer and EmailConsumer instances using factories and initializes a new Queue with the created producers and consumers.
+// The function returns the initialized Queue.
 func BuildEmailQueue(rabbitMQURL string, numProducers int, numConsumers int, emailCache storage.CacheInterface) *Queue {
 
 	// Producer factories
@@ -180,9 +207,12 @@ func BuildEmailQueue(rabbitMQURL string, numProducers int, numConsumers int, ema
 	return queue
 }
 
-// InitEmailCache initalizes the cache storage for confirmation email messages. 
-// It returns a CacheInterface object that can be used to communicate with the
-// implementation of the cache in the backend.
+// InitEmailCache is a function that initializes the cache storage for confirmation email messages.
+// It accepts one argument:
+// - url: A string containing the URL of the cache server.
+//
+// This function performs the task of creating a new cache with the given URL.
+// The function returns a CacheInterface object that can be used to communicate with the cache in the backend.
 func InitEmailCache(url string) storage.CacheInterface {
 	c, err := storage.NewCache(url)
 	if err != nil {
@@ -191,10 +221,14 @@ func InitEmailCache(url string) storage.CacheInterface {
 	return c
 }
 
-// ProcessEmail takes an EmailMessage and a Queue of producers, 
-// serializes the email message to JSON, and then publishes it onto the queue using
-// one of the producers in a round-robin manner. It handles possible errors, 
-// such as marshaling failures or a lack of available producers.
+// ProcessEmail is a function that takes an EmailMessage and a Queue of producers,
+// serializes the email message to JSON, and then publishes it onto the queue using one of the producers in a round-robin manner.
+// It accepts two arguments:
+// - emailMsg: A pointer to the EmailMessage to be processed.
+// - emailQueue: A pointer to the Queue to which the email message is to be published.
+//
+// This function performs several tasks. It serializes the email message, selects a producer from the queue in a round-robin manner, and then publishes the serialized message to the queue.
+// The function returns an error if there was a problem with any step of the process.
 func ProcessEmail(emailMsg *EmailMessage, emailQueue *Queue) error {
 
 	body, err := json.Marshal(emailMsg)

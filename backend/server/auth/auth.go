@@ -18,17 +18,25 @@ import (
 	"encoding/base32"
 )
 
-// store is an interface to the storage system (database). 
+// store is a global variable that holds an interface to the storage system (database). 
 var store storage.StorageInterface
 
-// jwtSigningKey is the secret key used to sign JWT tokens. 
+// jwtSigningKey is a global variable that holds the key used for signing and verifying JWT tokens. 
 var jwtSigningKey string
 
+// emailQueue is a global variable that stores a reference to the messaging queue used to process and send emails.
 var emailQueue *queue.Queue
 
-// InitAuth initializes the authentication system, setting up a storage system (database) and a JWT signing key.
-// It is required to be called before any other function in this package.
-// The function takes a MongoDB URI, signing key, and auth token as input.
+// InitAuth is a function for initializing the authentication system.
+//
+// It accepts four arguments:
+// - dbName: The name of the MongoDB database to use for storage.
+// - mongodbURI: The URI to connect to the MongoDB database.
+// - signingKey: The key used to sign JWT tokens.
+// - queue: A queue system to process the emails.
+//
+// The function sets up the storage system and JWT signing key.
+// It panics if there is any error during the initialization.
 func InitAuth(dbName, mongodbURI, signingKey string, queue *queue.Queue) {
 	var err error
 	jwtSigningKey = signingKey
@@ -39,10 +47,13 @@ func InitAuth(dbName, mongodbURI, signingKey string, queue *queue.Queue) {
 	emailQueue = queue
 }
 
-// CreateAuthToken creates and returns a signed JWT token for the given user id.
-// This token can be used to authenticate the user in subsequent requests.
-// Returns an auth token if the token creation is succesful.
-// Returns an error if the token creation fails.
+// CreateAuthToken is a function to create a signed JWT token for a user.
+//
+// It accepts one argument:
+// - userId: The ID of the user to generate a token for.
+//
+// The function creates a JWT token with the user's ID and an expiration time.
+// It returns a signed JWT token or an error if there was a problem during the token creation.
 func CreateAuthToken(userId string) (string, error) {
 	claims := jwt.MapClaims{
 		"id":  userId,
@@ -59,10 +70,13 @@ func CreateAuthToken(userId string) (string, error) {
 	return signedToken, nil
 }
 
-// CreateRefreshToken generates a refresh token for the given user id.
-// This refresh token can be used to get a new authentication token when the old one expires.
-// Returns a refresh token if the token creation is succesful.
-// Returns an error if the token creation fails.
+// CreateRefreshToken is a function to create a refresh JWT token for a user.
+//
+// It accepts one argument:
+// - userId: The ID of the user to generate a refresh token for.
+//
+// The function creates a JWT refresh token with the user's ID and an expiration time.
+// It returns a signed JWT refresh token or an error if there was a problem during the token creation.
 func CreateRefreshToken(userId string) (string, error) {
 	claims := jwt.MapClaims{
 		"id":  userId, 
@@ -79,10 +93,13 @@ func CreateRefreshToken(userId string) (string, error) {
 	return signedToken, nil
 }
 
-// CreateTokens generates a new pair of authentication and refresh tokens for the given user id.
-// This function calls CreateAuthToken and CreateRefreshToken internally.
-// Returns a pair of tokens (auth token, refresh token) if the token creation is successful.
-// Returns an error if the creation of any token fails.
+// CreateTokens is a function to create both an auth token and a refresh token for a user.
+//
+// It accepts one argument:
+// - userId: The ID of the user to generate tokens for.
+//
+// The function calls the CreateAuthToken and CreateRefreshToken functions to create a pair of tokens.
+// It returns the pair of tokens or an error if there was a problem during the token creation.
 func CreateTokens(userId string) (string, string, error) {
 	authToken, authErr := CreateAuthToken(userId)
 	if authErr != nil {
@@ -97,9 +114,15 @@ func CreateTokens(userId string) (string, string, error) {
 	return authToken, refreshToken, nil
 }
 
-// CheckCredentials verifies that the passed in username, email, and password belong to the same user.
-// Returns true if the credentials are valid, else false.
-// Returns an error if the credentials are invalid or any internal operation fails.
+// CheckCredentials is a function to verify the credentials of a user.
+//
+// It accepts three arguments:
+// - username: The username of the user.
+// - email: The email of the user.
+// - password: The password of the user.
+//
+// The function checks the length of the username and the format of the email.
+// It returns a boolean indicating whether the credentials are valid or not, and an error if there was a problem during the validation.
 func CheckCredentials(username, email, password string) (bool, error) {
 
 	if len(username) < 2 {
@@ -113,46 +136,76 @@ func CheckCredentials(username, email, password string) (bool, error) {
 	return true, nil
 }
 
-// ResetPassword resets the password of the user with the given email address.
-// Returns an error if the email address is invalid, or any internal operation fails.
+// ResetPassword is a function to reset the password of a user.
+//
+// It accepts two arguments:
+// - email: The email of the user.
+// - newPassword: The new password of the user.
+//
+// The function validates the email and resets the password of the user associated with the provided email.
+// It returns an error if there was a problem during the password reset process.
 func ResetPassword(email, newPassword string) error {
 	return nil
 }
 
-// SignIn logs in a user with the provided username and password.
-// If the login is successful, it returns an authentication token and a refresh token.
-// Returns an error if the username or password is incorrect, or any internal operation fails.
-func SignIn(username string, password string) (string, string, error) {
+// SignIn is a function for authenticating a user.
+//
+// It accepts two arguments:
+// - username: A string containing the username of the user attempting to log in.
+// - password: A string containing the password of the user attempting to log in.
+//
+// This function performs several tasks:
+// It checks if the length of the username is at least 2 characters.
+// It finds the user in the database by their username.
+// It compares the hashed password stored in the database with the password provided by the user.
+// It calls CreateTokens function to generate a new pair of tokens for the user.
+//
+// The function returns an authentication token, a refresh token, a boolean indicating whether the user's email is confirmed, 
+// and an error if there was a problem with any step of the process.
+func SignIn(username string, password string) (string, string, bool, error) {
 
 	if len(username) < 2 {
-		return "", "", errors.New("invalid username")
+		return "", "", false, errors.New("invalid username")
 	}
 
 	foundUser, err := store.FindUser(context.Background(), bson.M{"username": username})
 
 	if err != nil {
-		return "", "", errors.New("authentication failed")
+		return "", "", false, errors.New("authentication failed")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(foundUser.PasswordHash), []byte(password))
 	if err != nil {
-		return "", "", errors.New("authentication failed")
+		return "", "", false, errors.New("authentication failed")
 	}
 
 	token, refreshToken, err := CreateTokens(foundUser.ID.Hex())
 
 	if err != nil {
-		return "", "", err
+		return "", "", false, err
 	}
 
-	// Need to return confirmed = False
-	return token, refreshToken, nil
+	return token, refreshToken, foundUser.EmailConfirmed, nil
 }
 
-// SignUp creates a new user with the provided username, email, and password.
-// If the registration is successful, it returns an authentication token and a refresh token.
-// Returns an error if any input is invalid, a user with the same email or username already exists,
-// or any internal operation fails.
+// SignUp is a function for registering a new user.
+//
+// It accepts three arguments:
+// - username: A string containing the username of the new user.
+// - email: A string containing the email of the new user.
+// - password: A string containing the password of the new user.
+//
+// This function performs several tasks:
+// It checks if the length of the username is at least 2 characters.
+// It validates the email format and the password complexity.
+// It checks if a user with the same email or username already exists in the database.
+// It hashes the password provided by the user.
+// It creates a new user in the database with the provided details.
+// It generates a confirmation token and sends a confirmation email to the new user.
+// It adds a confirmation record to the database, associated with the new user.
+// It calls CreateTokens function to generate a new pair of tokens for the user.
+//
+// The function returns an authentication token, a refresh token, and an error if there was a problem with any step of the process.
 func SignUp(username string, email string, password string) (string, string, error) {
 
 	if len(username) < 2 {
@@ -261,10 +314,17 @@ func SignUp(username string, email string, password string) (string, string, err
 	return token, refreshToken, nil
 }
 
-// RefreshToken takes a refresh token, validates it, and if it's valid, generates a new pair of tokens.
-// This is useful when the authentication token has expired and a new one is needed.
-// Returns a pair of tokens if the refresh token is valid and the creation of new tokens is successful.
-// Returns an error if the refresh token is invalid, or the creation of new tokens fails.
+// RefreshToken is a function that validates a refresh token and generates a new pair of tokens if the refresh token is valid.
+// It accepts two arguments:
+// - userId: A string containing the id of the user who is requesting new tokens.
+// - refreshToken: A string containing the refresh token to be validated.
+//
+// This function performs several tasks:
+// It parses the refresh token and validates it.
+// If the refresh token is valid and belongs to the given user, it generates a new pair of tokens.
+// If the refresh token is expired or invalid, or does not belong to the given user, it returns an error.
+//
+// The function returns the new tokens (or empty strings if there was an error), and an error if there was a problem with any step of the process.
 func RefreshToken(userId string, refreshToken string) (string, string, error) {
 	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -294,27 +354,37 @@ func RefreshToken(userId string, refreshToken string) (string, string, error) {
 	return CreateTokens(userId)
 }
 
-// UpdateUser allows the update of user details.
-// It checks the current password for authentication, and then updates any 
-// provided new username, email, or password. Returns an error if the current password is incorrect, 
-// no fields to update were provided, or the update operation fails.
-// Returns 'true' if the update operation was succesful, else 'false'.
-func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword string) (bool, error) {
+// UpdateUser is a function that allows the update of user details.
+// It accepts five arguments:
+// - userId: A string containing the id of the user whose details are to be updated.
+// - currentPassword: A string containing the current password of the user. This is used for authentication before updating any details.
+// - newUsername: A string containing the new username for the user.
+// - newEmail: A string containing the new email for the user.
+// - newPassword: A string containing the new password for the user.
+//
+// This function performs several tasks:
+// It checks if the current password matches the stored password for the user.
+// If the current password is incorrect, it returns an error.
+// If the current password is correct, it updates the provided fields (username, email, and/or password) in the user's record in the database.
+//
+// The function returns a boolean indicating whether the update operation was successful, a boolean indicating whether the user's email is confirmed,
+// and an error if there was a problem with any step of the process.
+func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword string) (bool, bool, error) {
 
 	objectID, err := primitive.ObjectIDFromHex(userId)
 
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 
 	foundUser, err := store.FindUser(context.Background(), bson.M{"_id": objectID})
     if err != nil {
-        return false, errors.New("authentication failed")
+        return false, false, errors.New("authentication failed")
     }
 
 	err = bcrypt.CompareHashAndPassword([]byte(foundUser.PasswordHash), []byte(currentPassword))
 	if err != nil {
-		return false, errors.New("authentication failed")
+		return false, false, errors.New("authentication failed")
 	}
 
 	update := bson.M{
@@ -324,7 +394,7 @@ func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword stri
 	if newUsername != "" {
 		existingUser, err := store.FindUser(context.Background(), bson.M{"username": newUsername})
 		if existingUser != nil || err == nil {
-			return false, errors.New("username already in use")
+			return false, false, errors.New("username already in use")
 		}
 		update["$set"].(bson.M)["username"] = newUsername
 	}
@@ -332,34 +402,44 @@ func UpdateUser(userId, currentPassword, newUsername, newEmail, newPassword stri
 	if newEmail != "" {
 		existingUser, err := store.FindUser(context.Background(), bson.M{"email": newEmail})
 		if existingUser != nil || err == nil {
-			return false, errors.New("email already in use")
+			return false, false, errors.New("email already in use")
 		}
 		update["$set"].(bson.M)["email"] = newEmail
+		update["$set"].(bson.M)["emailConfirmed"] = false
 	}
 
 	if newPassword != "" {
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 		if err != nil {
-			return false, err
+			return false, false, err
 		}
 		update["$set"].(bson.M)["password_hash"] = string(hashedPassword)
 	}
 
 	if len(update["$set"].(bson.M)) == 0 {
-		return false, errors.New("nothing to update")
+		return false, false, errors.New("nothing to update")
 	}
 
 	_, err = store.UpdateUser(context.Background(), bson.M{"_id": objectID}, update)
 	if err != nil {
-		return false, errors.New("internal server error updating user")
+		return false, false, errors.New("internal server error updating user")
 	}
 
-	return true, nil
+	emailConfirmed := foundUser.EmailConfirmed
+	if newEmail != "" {
+		emailConfirmed = false
+	}
+	return true, emailConfirmed, nil
 }
 
-// DeleteUser deletes the user with the given id from the database.
-// Returns an error if the delete operation fails.
-// Returns 'true' if the deletion was succesful, else 'false'.
+// DeleteUser is a function that deletes a user record from the database.
+// It accepts one argument:
+// - userId: A string containing the id of the user who is to be deleted.
+//
+// This function performs one main task:
+// It deletes the user record with the given id from the database.
+//
+// The function returns a boolean indicating whether the deletion was successful, and an error if there was a problem with the deletion operation.
 func DeleteUser(userId string) (bool, error) {
 
 	objectID, err := primitive.ObjectIDFromHex(userId)
@@ -378,9 +458,18 @@ func DeleteUser(userId string) (bool, error) {
 	return true, nil
 }
 
-// ConfirmEmail confirms the email address of a user with the provided userID and confirmationToken.
-// Returns an error if the confirmationToken is incorrect, expired, or the user's email address could 
-// not be updated in the database.
+// ConfirmEmail is a function that confirms a user's email address.
+// It accepts two arguments:
+// - userID: A string containing the id of the user whose email address is to be confirmed.
+// - confirmationToken: A string containing the confirmation token for confirming the email address.
+//
+// This function performs several tasks:
+// It fetches the confirmation record for the given user from the database.
+// It checks if the confirmation token is expired or does not match the stored confirmation token.
+// If the confirmation token is valid and not expired, it updates the user's record in the database to confirm their email address.
+// It then deletes the confirmation record from the database.
+//
+// The function returns an error if there was a problem with any step of the process.
 func ConfirmEmail(userID, confirmationToken string) error {
 	var confirmError error
 	

@@ -18,7 +18,23 @@ import (
 	"context"
 )
 
-// jwtMiddleware is a middleware function that validates JWT tokens and injects user id or error into the request context.
+// jwtMiddleware is a middleware function that performs JWT validation.
+//
+// It accepts two arguments:
+// - signingKey: A key used for validating the JWT signature.
+// - next: The next http.Handler to be executed once the middleware has done its job.
+//
+// This function reads the JWT from the Authorization header of the HTTP request. If a JWT is present,
+// it verifies the token's signature and checks if it has expired. If the JWT is valid, the function
+// injects the user's ID extracted from the JWT into the request's context under the contextKey.UserIDKey.
+//
+// If the JWT has expired but the claims can still be extracted, the function also injects the user's ID
+// into the request's context. In case of any error during the JWT parsing, the function injects the error
+// into the request's context under the contextKey.JwtErrorKey.
+//
+// The function does not stop the HTTP request processing and always calls the next http.Handler regardless
+// of whether a JWT was present and valid, or any error occurred. Thus, it's up to the next handlers
+// to interpret the data in the request's context and react accordingly.
 func jwtMiddleware(signingKey string, next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         authHeader := r.Header.Get("Authorization")
@@ -74,6 +90,7 @@ func recoveryMiddleware(next http.Handler) http.Handler {
 }
 
 // Start initializes and starts the GraphQL server. Runs on localhost:8080 by default.
+// The function requires a serverURL (the URL where the server must be deployed) and the JWT signing key.
 func Start(serverURL, signingKey string) {
     // Initialize a new router
     r := mux.NewRouter()

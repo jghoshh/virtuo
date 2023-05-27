@@ -10,7 +10,7 @@ import (
 
 	"github.com/jghoshh/virtuo/backend/server/auth"
 	contextKey "github.com/jghoshh/virtuo/backend/server/context_key"
-	"github.com/jghoshh/virtuo/lib/graph_models"
+	model "github.com/jghoshh/virtuo/lib/graph_models"
 	"github.com/jghoshh/virtuo/lib/utils"
 )
 
@@ -44,7 +44,7 @@ func (r *mutationResolver) SignUp(ctx context.Context, user model.UserInput) (*m
 
 // SignIn is the resolver for the signIn field.
 func (r *mutationResolver) SignIn(ctx context.Context, username string, password string) (*model.SignInPayload, error) {
-	token, refreshToken, err := auth.SignIn(username, password)
+	token, refreshToken, confirmed, err := auth.SignIn(username, password)
 
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func (r *mutationResolver) SignIn(ctx context.Context, username string, password
 	signInPayload := &model.SignInPayload{
 		Token:          token,
 		RefreshToken:   refreshToken,
-		EmailConfirmed: false,
+		EmailConfirmed: confirmed,
 	}
 
 	return signInPayload, nil
@@ -94,58 +94,62 @@ func (r *mutationResolver) RefreshAccessToken(ctx context.Context, refreshToken 
 }
 
 // UpdateUser is the resolver for the updateUser field.
-func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (bool, error) {
+func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUserInput) (*model.UpdateUserPayload, error) {
 	_, ok := ctx.Value(contextKey.JwtErrorKey).(error)
 
 	if ok {
-		return false, fmt.Errorf("user unauthenticated")
+		return nil, fmt.Errorf("user unauthenticated")
 	}
 
 	userId, ok := ctx.Value(contextKey.UserIDKey).(string)
 
 	if !ok {
-		return false, fmt.Errorf("user unauthenticated")
+		return nil, fmt.Errorf("user unauthenticated")
 	}
 
 	if input.CurrentPassword == "" {
-		return false, fmt.Errorf("current password must be provided")
+		return nil, fmt.Errorf("current password must be provided")
 	}
 
 	// Ensure at least one of newEmail, newUsername, newPassword is provided
 	if input.NewEmail == nil && input.NewUsername == nil && input.NewPassword == nil {
-		return false, fmt.Errorf("at least one of new email, new username or new password must be provided")
+		return nil, fmt.Errorf("at least one of new email, new username or new password must be provided")
 	}
 
 	var newUsernameStr, newEmailStr, newPasswordStr string
 
 	if input.NewUsername != nil {
 		if len(*input.NewUsername) <= 1 {
-			return false, fmt.Errorf("username must be at least 2 characters")
+			return nil, fmt.Errorf("username must be at least 2 characters")
 		}
 		newUsernameStr = *input.NewUsername
 	}
 
 	if input.NewEmail != nil {
 		if !utils.ValidateEmail(*input.NewEmail) {
-			return false, fmt.Errorf("invalid email format")
+			return nil, fmt.Errorf("invalid email format")
 		}
 		newEmailStr = *input.NewEmail
 	}
 
 	if input.NewPassword != nil {
 		if !utils.ValidatePassword(*input.NewPassword) {
-			return false, fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
+			return nil, fmt.Errorf("password must be at least 8 characters and contain both letters and numbers")
 		}
 		newPasswordStr = *input.NewPassword
 	}
 
-	_, err := auth.UpdateUser(userId, input.CurrentPassword, newUsernameStr, newEmailStr, newPasswordStr)
+	_, emailConfirmed, err := auth.UpdateUser(userId, input.CurrentPassword, newUsernameStr, newEmailStr, newPasswordStr)
 
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 
-	return true, nil
+	updateUserPayload := &model.UpdateUserPayload{
+		EmailConfirmed: emailConfirmed,
+	}
+
+	return updateUserPayload, nil
 }
 
 // DeleteUser is the resolver for the deleteUser field.

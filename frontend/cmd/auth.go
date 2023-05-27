@@ -10,24 +10,39 @@ import (
 	"os"
 )
 
-var (
-	guestCommands []Command
-	userCommands []Command
-	commonCommands []Command
-	loggedIn bool
-	shell *ishell.Shell
-	confirmedEmail bool
-)
+// guestCommands is a slice of Command structures containing commands that are available to users who have not logged in.
+var guestCommands []Command
 
+// userCommands is a slice of Command structures containing commands that are available only to logged in users.
+var userCommands []Command
+
+// commonCommands is a slice of Command structures containing commands that are available to all users, regardless of their login status.
+var commonCommands []Command
+
+// loggedIn is a boolean variable that indicates whether a user is currently logged in. It is true when a user is logged in and false otherwise.
+var loggedIn bool
+
+// shell represents an instance of the interactive shell used for this application. Users can interact with the application by executing commands on this shell.
+var shell *ishell.Shell
+
+// confirmedEmail is a boolean variable that indicates whether a user has confirmed their email. It is true when the email is confirmed and false otherwise.
+var confirmedEmail bool
+
+// The Command struct defines a user command in the system. Each command has a Name, a Desc (short for description), and a Func (the function to execute when the command is called).
 type Command struct {
-	Name string
-	Desc string
-	Func func(c *ishell.Context)
+	Name string // Name is the name of the command.
+	Desc string // Desc is a short description of what the command does.
+	Func func(c *ishell.Context) // Func is the function that is executed when the command is invoked.
 }
 
+// InitAuthCmd is a function that initializes the authentication commands.
+// It initializes the shell and sets up the commands for guest and user scenarios.
 func InitAuthCmd() { 
+
+	// Initialize shell
 	shell = ishell.New()
-	
+
+	// Define the commands available to a guest user (not signed in)
 	guestCommands = []Command{
 		{
 			Name: "signin",
@@ -152,7 +167,6 @@ func InitAuthCmd() {
 					c.Println("Email is not valid.")
 				}
 		
-				// Client requests the password reset.
 				err := client.RequestPasswordReset(email)
 				if err != nil {
 					utils.PrintError("internal server error")
@@ -169,7 +183,6 @@ func InitAuthCmd() {
 					c.Println("Please enter the token.")
 				}
 		
-				// Verify the token.
 				err = client.VerifyPasswordToken(email, token)
 				if err != nil {
 					utils.PrintError("invalid or expired token. Please restart the password reset process.")
@@ -196,7 +209,8 @@ func InitAuthCmd() {
 			},
 		},
 	}
-	
+
+	// Define the commands available to a signed in user
 	userCommands = []Command{
 		{
 			Name: "updatemyacc",
@@ -374,6 +388,7 @@ func InitAuthCmd() {
 		},
 	}
 
+	// Define common commands that are always available, regardless of login state
 	commonCommands = []Command{
 		{
 			Name: "exit",
@@ -408,6 +423,11 @@ func InitAuthCmd() {
 	})
 }
 
+// addCommands is a helper function that adds the given commands to the shell.
+//
+// It accepts two arguments:
+// - shell: The ishell shell where the commands will be added.
+// - commands: A slice of Command structs to be added to the shell.
 func addCommands(shell *ishell.Shell, commands []Command) {
 	for _, command := range commands {
 		shell.AddCmd(&ishell.Cmd{
@@ -418,6 +438,8 @@ func addCommands(shell *ishell.Shell, commands []Command) {
 	}
 }
 
+// Execute is the main function that executes the shell.
+// It welcomes the user, adds common and guest commands to the shell, and runs the shell.
 func Execute() {
 	shell.Println()
 	figure.NewFigure("Virtuo", "basic", true).Print()

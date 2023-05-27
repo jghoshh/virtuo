@@ -13,32 +13,46 @@ import (
 	"github.com/jghoshh/virtuo/lib/graph_models"
 )
 
-// jwtSigningKey is used to sign and verify JWT tokens.
+// jwtSigningKey is a global variable that holds the key used for signing and verifying JWT tokens. 
 var jwtSigningKey string
 
-// KeyringKey is used to store and retrieve the JWT token from the system keyring.
+// KeyringKey is a global variable that represents the identifier used to store and retrieve the JWT token from the system keyring. 
+// This allows the application to securely store and access the token whenever it is needed for authentication purposes.
 var KeyringKey string
 
-// RefreshKeyringKey is used to store and retrieve the refresh token from the system keyring.
+// RefreshKeyringKey is a global variable that represents the identifier used to store and retrieve the refresh token from the system keyring. 
+// This token can be used to acquire a new JWT token when the current one expires, improving the security and user experience of the application.
 var RefreshKeyringKey string
 
-// ServerURL is the URL of the server the client is connecting to.
+// ServerURL is a global variable that stores the URL of the server that the client will connect to. 
+// This URL is the endpoint to which all requests from the client will be sent.
 var ServerURL string
 
-// client is the HTTP client used to make requests to the server.
+// client is an instance of an HTTP client that is used to make requests to the server. 
+// This instance is initialized with the default settings and can be used throughout the application to communicate with the server.
 var client = &http.Client{}
 
-// KeyringService is the name of the service in the system keyring where the JWT token and refresh token are stored.
+// KeyringService is a constant that specifies the name of the service in the system keyring where the JWT token and refresh token are stored. 
+// This helps to categorize and organize the tokens in the system keyring, making them easier to manage.
 const KeyringService = "Virtuo"
 
-// TokenResult is a struct that represents the result of a request to an auth service, such as SignIn or SignUp.
+// TokenResult is a struct type that represents the response received from an authentication service, such as SignIn or SignUp. 
+// It includes the JWT token and refresh token that are returned by the service upon successful authentication.
 type TokenResult struct {
-	Token        string
+	Token string
 	RefreshToken string
 }
 
-// InitAuthClient initializes the jwtSigningKey and KeyringKey variables.
-// This function must be called before using any other functions in the package.
+// InitAuthClient is a function that initializes global variables used in this package.
+//
+// This function accepts four arguments:
+//
+// - serverURL: the URL of the server to which the requests will be sent.
+// - signingKey: the key used to sign the JWT tokens.
+// - authToken: the key used to store and retrieve the authentication token from the system's keyring.
+// - authTokenRefresh: the key used to store and retrieve the refresh token from the system's keyring.
+//
+// This function must be called before using any other functions in this package.
 func InitAuthClient(serverURL, signingKey, authToken, authTokenRefresh string) {
 	jwtSigningKey = signingKey
 	KeyringKey = authToken
@@ -46,9 +60,16 @@ func InitAuthClient(serverURL, signingKey, authToken, authTokenRefresh string) {
 	ServerURL = serverURL
 }
 
-// decodeJWT decodes a JWT token and returns the claims contained within it.
-// It returns an error if the token is invalid.
-// Returns the claims if the token is valid, else an error.
+// decodeJWT is a function that manages the process of decoding a JWT and returning the claims contained within it.
+//
+// It accepts one argument:
+// - tokenStr: A string containing the JWT token.
+//
+// This function performs several tasks:
+// It uses the jwt package's Parse function to decode the token.
+// If the token is invalid or an error occurs during the decoding, it returns the error. If the token is valid, it returns the claims contained within the token.
+//
+// The function returns an error if there was a problem with any step of the process.
 func decodeJWT(tokenStr string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -71,9 +92,15 @@ func decodeJWT(tokenStr string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
-// isJwtTokenInKeyring checks if the system keyring contains a JWT token.
-// Returns 'true' and the token if it exists, 'false' and an empty string if it doesn't.
-// Returns an error if there was a problem accessing the keyring.
+// isJwtTokenInKeyring is a function that manages the process of checking if the system's keyring contains a JWT token.
+//
+// This function accepts no arguments.
+//
+// This function performs several tasks:
+// It retrieves the JWT token from the keyring.
+// If the token is not found or an error occurs during retrieval, it returns an error. If the token is found, it returns 'true' and the token.
+//
+// The function returns an error if there was a problem with any step of the process.
 func isJwtTokenInKeyring() (bool, string, error) {
 	jwt, err := keyring.Get(KeyringService, KeyringKey)
 	if err != nil {
@@ -85,8 +112,15 @@ func isJwtTokenInKeyring() (bool, string, error) {
 	return true, jwt, nil
 }
 
-// ClearKeyring clears the JWT token and refresh token from the system keyring atomically.
-// Returns an error if there was a problem accessing or clearing the keyring.
+// ClearKeyring is a function that handles the process of clearing the JWT token and refresh token from the system's keyring atomically.
+//
+// This function accepts no arguments.
+//
+// This function performs several tasks:
+// It attempts to delete both the JWT token and the refresh token from the keyring.
+// If an error occurs during the deletion, it returns the error. If the deletion is successful, it returns nil.
+//
+// The function returns an error if there was a problem with any step of the process.
 func ClearKeyring() error {
 	accessToken, err := keyring.Get(KeyringService, KeyringKey)
 	if err != nil {
@@ -107,10 +141,16 @@ func ClearKeyring() error {
 	return nil
 }
 
-// IsUserAuthenticated checks if the user is authenticated by checking if a valid JWT token 
-// exists in the system keyring. If a valid token is found, it returns the token, else it 
-// returns an empty string. If the token is expired or invalid, it tries to refresh the 
-// token using the refresh token.
+// IsUserAuthenticated is a function that manages the process of checking if a user is authenticated.
+//
+// This function accepts no arguments.
+//
+// This function performs several tasks:
+// It checks if a valid JWT token is stored in the system's keyring.
+// If the token is expired, it attempts to refresh it.
+// If a valid token is found, the function returns the token. If no valid token is found or an error occurs, it returns an error.
+//
+// The function returns an error if there was a problem with any step of the process.
 func IsUserAuthenticated() (string, error) {
 
 	hasJwt, tokenStr, err := isJwtTokenInKeyring()
@@ -140,15 +180,35 @@ func IsUserAuthenticated() (string, error) {
 	return tokenStr, nil
 }
 
-// sendGraphQLRequest sends a GraphQL request to the server and handles the response.
-// The request can be a query or mutation, and it can optionally contain variables.
-// If handleTokenResponse is set to 'true', it will handle the TokenResult by saving 
-// the tokens to the keyring.
-// Returns the TokenResult, the HTTP response, and an error if there was a problem.
-func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse bool, variables ...map[string]interface{}) (*TokenResult, *http.Response, error) {
+// sendGraphQLRequest is a utility function that sends a GraphQL request to the
+// server and handles the response.
+//
+// It accepts four arguments:
+// - query: A string containing a GraphQL query or mutation.
+// - tokenString: A pointer to a string containing an authentication token, or nil if no token is available.
+// - handleTokenResponse: A boolean indicating whether the function should handle TokenResult.
+//    If true, the function will save the token and refresh token to the keyring.
+// - variables: A variadic parameter accepting a number of map[string]interface{} arguments.
+//    These represent the variables to be used in the GraphQL query or mutation.
+//
+// This function performs several tasks:
+// It creates a request body with the provided query and, if provided, the first set of variables.
+// It sends a POST request to the server with the request body, including the authentication token in the headers if it is provided.
+// It reads and parses the response body into a map.
+// If any errors are present in the response body, it collects and returns them as a single error.
+// It extracts the 'data' field from the response body and processes it. If a token and refresh token are included in the response,
+// and if handleTokenResponse is true, it saves the tokens to the keyring.
+// It collects any other attributes from the 'data' field and returns them.
+//
+// The function returns a pointer to a TokenResult (or nil if handleTokenResponse is false or no tokens were received), a map of attributes
+// extracted from the 'data' field of the response body, and an error if there was a problem with any step of the process.
+func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse bool, variables ...map[string]interface{}) (*TokenResult, map[string]interface{}, error) {
 
+	// Initializing the variables that may be populated by the graphql response. 
 	var token string
 	var refreshToken string
+    var tokenResult *TokenResult
+	attributes := make(map[string]interface{})
 
 	reqBodyData := map[string]interface{}{
 		"query": query,
@@ -158,6 +218,7 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 		reqBodyData["variables"] = variables[0]
 	}
 
+	// Create the request
 	reqBody, err := json.Marshal(reqBodyData)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %v", err)
@@ -174,93 +235,106 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 		req.Header.Add("Authorization", "Bearer "+*tokenString)
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, nil, fmt.Errorf("request failed: %v", err)
-	}
+	// Send the quest
+    resp, err := client.Do(req)
 
+    if err != nil {
+        return nil, nil, fmt.Errorf("request failed: %v", err)
+    }
+
+    defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+        return nil, nil, fmt.Errorf("received non-OK response code: %d", resp.StatusCode)
+    }
+
+	// Parse the response
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	defer resp.Body.Close()
-
 	var responseBody map[string]interface{}
+
 	err = json.Unmarshal(bodyBytes, &responseBody)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if errors, exists := responseBody["errors"]; exists {
-		for _, err := range errors.([]interface{}) {
-			errorMap := err.(map[string]interface{})
-			if message, ok := errorMap["message"].(string); ok {
-				return nil, nil, fmt.Errorf(message)
-			}
-		}
-	}	
+	// Check if there were any errors, in which case, we would populate a slice of error messages and return immediately
+    var errorMessages []string
+    if errors, exists := responseBody["errors"]; exists {
+        for _, err := range errors.([]interface{}) {
+            errorMap := err.(map[string]interface{})
+            if message, ok := errorMap["message"].(string); ok {
+                errorMessages = append(errorMessages, message)
+            }
+        }
+        return nil, nil, fmt.Errorf("errors received: %v", errorMessages)
+    }
 
+	// If there were no errors, data is expected to be there.
 	data, ok := responseBody["data"].(map[string]interface{})
 	if !ok {
 		return nil, nil, errors.New("response body does not contain 'data' field")
 	}
 
-	if signIn, ok := data["signIn"].(map[string]interface{}); ok {
-		if t, ok := signIn["token"].(string); ok {
-			token = t
-		}
-		if rt, ok := signIn["refreshToken"].(string); ok {
-			refreshToken = rt
-		}
-	} else if signUp, ok := data["signUp"].(map[string]interface{}); ok {
-		if t, ok := signUp["token"].(string); ok {
-			token = t
-		}
-		if rt, ok := signUp["refreshToken"].(string); ok {
-			refreshToken = rt
-		}
-	} else if refresh, ok := data["refreshAccessToken"].(map[string]interface{}); ok {
-		if t, ok := refresh["token"].(string); ok {
-			token = t
-		}
-		if rt, ok := refresh["refreshToken"].(string); ok {
-			refreshToken = rt
-		}
-	} else if _, ok := data["updateUser"].(bool); ok {
-		return nil, resp, nil
-	} else if _, ok := data["signOut"].(bool); ok {
-		return nil, resp, nil
-	} else if _, ok := data["deleteUser"].(bool); ok {
-		return nil, resp, nil
-	} else if _, ok := data["confirmEmail"].(bool); ok {
-		return nil, resp, nil
-	} else if _, ok := data["checkCredentials"].(bool); ok {
-		return nil, resp, nil
-	} else {
-		return nil, nil, errors.New("unknown response type")
-	}
-		
-	if handleTokenResponse {
-		err = keyring.Set(KeyringService, KeyringKey, token)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if refreshToken != "" {
-			err = keyring.Set(KeyringService, RefreshKeyringKey, refreshToken)
-			if err != nil {
-				keyring.Delete(KeyringService, KeyringKey)
-				return nil, nil, err
+	// Parse the data and populate the 'attributes' variable defined earlier
+	for operationName, payload := range data {
+		switch payloadMap := payload.(type) {
+		case map[string]interface{}:
+			switch operationName {
+			case "signIn", "signUp", "refreshAccessToken":
+				if t, ok := payloadMap["token"].(string); ok {
+					token = t
+				}
+				if rt, ok := payloadMap["refreshToken"].(string); ok {
+					refreshToken = rt
+				}
 			}
+			attributes[operationName] = payloadMap
+		default:
+			attributes[operationName] = payload
 		}
 	}
 
-	return &TokenResult{Token: token, RefreshToken: refreshToken}, resp, nil
+	// If this function is tasked to handle token response, then handle it accordingly.
+    if token != "" && handleTokenResponse {
+        err := keyring.Set(KeyringService, KeyringKey, token)
+        if err != nil {
+            return nil, attributes, err
+        }
+
+        if refreshToken != "" {
+            err = keyring.Set(KeyringService, RefreshKeyringKey, refreshToken)
+            if err != nil {
+                _ = keyring.Delete(KeyringService, KeyringKey)
+                return nil, attributes, err
+            }
+        }
+        tokenResult = &TokenResult{Token: token, RefreshToken: refreshToken}
+    }
+
+    return tokenResult, attributes, nil
 }
 
-// RefreshAccessToken attempts to refresh the JWT token using the refresh token.
-// Returns the refreshed token if successful, else an error.
+// RefreshAccessToken is a function that attempts to refresh a JSON Web Token (JWT) using a refresh token stored in the keyring.
+//
+// The function accepts a single argument:
+// - tokenStr: a string representing the current JWT token.
+//
+// The function performs several tasks:
+// It retrieves the refresh token from the keyring.
+// It constructs a GraphQL mutation query string to request a new access token using the refresh token.
+// It sends this query to the GraphQL server using the sendGraphQLRequest function, which also handles the response.
+// The sendGraphQLRequest function is passed the query, the current JWT token, and a map containing the refresh token as variables.
+// It's also instructed to handle any received tokens by saving them to the keyring.
+// If the request is successful, the function returns the new access token received in the response. If the request fails, 
+// the function returns an error.
+//
+// The return values are:
+// - A string representing the new JWT token, or an empty string if the refresh operation was not successful.
+// - An error, which will be nil if the operation was successful, or an error object describing the issue if there was a problem.
 func RefreshAccessToken(tokenStr string) (string, error) {
 
 	refreshToken, err := keyring.Get(KeyringService, RefreshKeyringKey)
@@ -290,8 +364,17 @@ func RefreshAccessToken(tokenStr string) (string, error) {
 	return tokenResponse.Token, nil
 }
 
-// ConfirmEmail attempts to confirm the user's email address using the provided confirmation token.
-// Returns an error if the confirmation operation fails.
+// ConfirmEmail is a function that confirms the user's email address using the provided confirmation token.
+//
+// It accepts a single argument:
+// - confirmationToken: a string representing the confirmation token.
+//
+// This function performs several tasks:
+// It retrieves the current JWT token and checks if a user is authenticated.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error. If the confirmation is successful, it returns nil.
+//
+// The function returns an error if there was a problem with any step of the process.
 func ConfirmEmail(confirmationToken string) error {
 
 	token, err := IsUserAuthenticated()
@@ -323,8 +406,18 @@ func ConfirmEmail(confirmationToken string) error {
 	return nil
 }
 
-// SignIn attempts to sign in a user with the provided username and password.
-// Returns the JWT token and refresh token if the sign in was successful, else an error.
+// SignIn is a function that attempts to sign in a user with the provided username and password.
+//
+// It accepts two arguments:
+// - username: a string representing the user's username.
+// - password: a string representing the user's password.
+//
+// This function performs several tasks:
+// It checks if a user is already signed in by calling the isJwtTokenInKeyring function.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error. If the sign in is successful, it returns the JWT token and the refresh token.
+//
+// The function returns a string representing the JWT token, a string representing the refresh token, and an error if there was a problem with any step of the process.
 func SignIn(username, password string) (string, string, error) {
 
 	isSignedIn, _, err := isJwtTokenInKeyring()
@@ -359,8 +452,20 @@ func SignIn(username, password string) (string, string, error) {
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
 }
 
-// SignUp attempts to sign up a new user with the provided username, email, and password.
-// Returns the JWT token and refresh token if the sign up was successful, else an error.
+// SignUp is a function that attempts to sign up a new user with the provided username, email, and password.
+//
+// It accepts three arguments:
+// - username: a string representing the user's username.
+// - email: a string representing the user's email.
+// - password: a string representing the user's password.
+//
+// This function performs several tasks:
+// It validates the username, email, and password provided by the user.
+// It checks if a user is already signed in by calling the isJwtTokenInKeyring function.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error. If the sign up is successful, it returns the JWT token and the refresh token.
+//
+// The function returns a string representing the JWT token, a string representing the refresh token, and an error if there was a problem with any step of the process.
 func SignUp(username, email, password string) (string, string, error) {
 
 	isSignedIn, _, err := isJwtTokenInKeyring()
@@ -411,10 +516,21 @@ func SignUp(username, email, password string) (string, string, error) {
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
 }
 
-// UpdateUser attempts to update the current user's information.
-// It requires the current password for authentication, and the new username, email, and 
-// password to update. Returns an error if the update operation fails, or if no fields to 
-// update were provided.
+// UpdateUser is a function that handles the process of updating a user's credentials.
+//
+// It accepts four arguments:
+// - currentPassword: A string containing the current password of the user.
+// - newUsername: A string containing the new username, can be an empty string if username is not being updated.
+// - newEmail: A string containing the new email, can be an empty string if email is not being updated.
+// - newPassword: A string containing the new password, can be an empty string if password is not being updated.
+//
+// This function performs several tasks:
+// It retrieves the current JWT token and checks if a user is authenticated.
+// It validates the new credentials provided by the user.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error. If the update is successful, it returns nil.
+//
+// The function returns an error if there was a problem with any step of the process.
 func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) error {
 
 	token, err := IsUserAuthenticated()
@@ -475,9 +591,17 @@ func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) erro
 	return nil
 }
 
-// SignOut signs out the current user by invalidating the JWT token on the server 
-// and removing the tokens from the system keyring.
-// Returns an error if the sign out operation fails.
+// SignOut is a function that handles the process of signing out a user.
+//
+// This function does not require any arguments.
+//
+// This function performs several tasks:
+// It retrieves the current JWT token and checks if a user is authenticated.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error.
+// If the sign out is successful, it will also clear the JWT token and refresh token from the keyring.
+//
+// The function returns an error if there was a problem with any step of the process.
 func SignOut() error {
 
 	token, err := IsUserAuthenticated()
@@ -509,8 +633,17 @@ func SignOut() error {
 	return nil
 }
 
-// DeleteUser deletes the currently authenticated user.
-// It then signs out the user by calling the SignOutUser function.
+// DeleteUser is a function that handles the process of deleting a user's account.
+//
+// This function does not require any arguments.
+//
+// This function performs several tasks:
+// It retrieves the current JWT token and checks if a user is authenticated.
+// It prepares a GraphQL mutation and sends it to the server using the sendGraphQLRequest function.
+// It handles the response from the server, if an error is received, it will return the error.
+// If the deletion is successful, it will also sign out the user by calling the SignOut function.
+//
+// The function returns an error if there was a problem with any step of the process.
 func DeleteUser() error {
 
 	token, err := IsUserAuthenticated()

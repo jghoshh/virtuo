@@ -18,11 +18,15 @@ type Mutation {
   signIn(username: String!, password: String!): SignInPayload!
   signOut: Boolean!
   refreshAccessToken(refreshToken: String!): AuthPayload!
-  updateUser(input: UpdateUserInput!): Boolean!
+  updateUser(input: UpdateUserInput!): UpdateUserPayload!
   deleteUser: Boolean!
   checkCredentials(input: UserInput!): Boolean!
   resetPassword(input: ResetPasswordInput!): Boolean!
   confirmEmail(confirmationToken: String!): Boolean! 
+}
+
+type UpdateUserPayload {
+  emailConfirmed: Boolean!
 }
 
 type SignInPayload {

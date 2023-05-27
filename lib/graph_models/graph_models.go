@@ -25,6 +25,10 @@ type UpdateUserInput struct {
 	NewPassword     *string `json:"newPassword,omitempty"`
 }
 
+type UpdateUserPayload struct {
+	EmailConfirmed bool `json:"emailConfirmed"`
+}
+
 type User struct {
 	ID             string   `json:"id"`
 	Username       string   `json:"username"`
