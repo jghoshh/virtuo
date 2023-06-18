@@ -156,7 +156,7 @@ func IsUserAuthenticated() (string, error) {
 	hasJwt, tokenStr, err := isJwtTokenInKeyring()
 
 	if err != nil {
-		return "", err
+		return "", errors.New("no user is signed in")
 	}
 
 	if !hasJwt {
@@ -174,7 +174,7 @@ func IsUserAuthenticated() (string, error) {
 				return newToken, nil
 			}
 		}
-		return "", err
+		return "", errors.New("authentication failed")
 	}
 
 	return tokenStr, nil
@@ -235,7 +235,7 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 		req.Header.Add("Authorization", "Bearer "+*tokenString)
 	}
 
-	// Send the quest
+	// Send the request
     resp, err := client.Do(req)
 
     if err != nil {
@@ -283,22 +283,28 @@ func sendGraphQLRequest(query string, tokenString *string, handleTokenResponse b
 	for operationName, payload := range data {
 		switch payloadMap := payload.(type) {
 		case map[string]interface{}:
-			switch operationName {
-			case "signIn", "signUp", "refreshAccessToken":
-				if t, ok := payloadMap["token"].(string); ok {
-					token = t
+			operationAttributes := make(map[string]interface{})
+			for key, value := range payloadMap {
+				operationAttributes[key] = value
+				if handleTokenResponse && key == "token" {
+					if t, ok := value.(string); ok {
+						token = t
+					}
 				}
-				if rt, ok := payloadMap["refreshToken"].(string); ok {
-					refreshToken = rt
+				if handleTokenResponse && key == "refreshToken" {
+					if rt, ok := value.(string); ok {
+						refreshToken = rt
+					}
 				}
 			}
-			attributes[operationName] = payloadMap
+			attributes[operationName] = operationAttributes
 		default:
 			attributes[operationName] = payload
 		}
 	}
 
-	// If this function is tasked to handle token response, then handle it accordingly.
+	// If the function is tasked to handle token response, then handle it accordingly.
+	// This part of the funciton atomically sets the tokens.
     if token != "" && handleTokenResponse {
         err := keyring.Set(KeyringService, KeyringKey, token)
         if err != nil {
@@ -446,7 +452,7 @@ func SignIn(username, password string) (string, string, error) {
 	
 	tokenResponse, _, err := sendGraphQLRequest(query, nil, true, vars)
 	if err != nil {
-		return "", "", err
+		return "", "", errors.New("authentication failed")
 	}
 
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
@@ -510,7 +516,7 @@ func SignUp(username, email, password string) (string, string, error) {
 	
 	tokenResponse, _, err := sendGraphQLRequest(query, nil, true, vars)
 	if err != nil {
-		return "", "", err
+		return "", "", errors.New("signing up failed -- please try again")
 	}
 
 	return tokenResponse.Token, tokenResponse.RefreshToken, nil
@@ -585,7 +591,7 @@ func UpdateUser(currentPassword, newUsername, newEmail, newPassword string) erro
 
 	_, _, err = sendGraphQLRequest(query, &token, false, vars)
 	if err != nil {
-		return err
+		return errors.New("user update failed -- please try again")
 	}
 
 	return nil
@@ -622,12 +628,12 @@ func SignOut() error {
 	_, _, err = sendGraphQLRequest(query, &token, false, nil)
 
 	if err != nil {
-		return err
+		return errors.New("failed to sign out -- please try again")
 	}
 
 	err = ClearKeyring()
 	if err != nil {
-		return err
+		return errors.New("failed to sign out -- please try again")
 	}
 
 	return nil
@@ -664,13 +670,13 @@ func DeleteUser() error {
 	_, _, err = sendGraphQLRequest(query, &token, false, nil)
 
 	if err != nil {
-		return err
+		return errors.New("internal server error -- please try again later")
 	}
 
 	err = SignOut()
 
 	if err != nil {
-		return err
+		return errors.New("failed to sign out -- please try again")
 	}
 
 	return nil
